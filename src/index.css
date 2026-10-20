@@ -1,0 +1,166 @@
+/* ------------------------------
+   ESTILO CORPORATIVO PREMIUM
+   ------------------------------ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #eef2f7;
+  font-family: "Inter", system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* HEADER CORPORATIVO */
+.header {
+  background: #1a3c6e;
+  color: white;
+  padding: 18px 30px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* TARJETA CENTRAL */
+.app-card {
+  max-width: 600px;
+  margin: 60px auto;
+  background: white;
+  border-radius: 14px;
+  padding: 40px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  text-align: center;
+}
+
+/* TÍTULO */
+h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #1a3c6e;
+  margin-bottom: 10px;
+}
+
+.app-subtitle {
+  font-size: 1rem;
+  color: #5f6c7b;
+  margin-bottom: 25px;
+}
+
+/* BOTONES CORPORATIVOS */
+.app-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.app-button {
+  padding: 14px 26px;
+  border-radius: 10px;
+  border: none;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  transition: 0.2s ease;
+}
+
+.app-button.sambil {
+  background: #0066cc;
+}
+
+.app-button.admin {
+  background: #00994d;
+}
+
+.app-button:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+/* ------------------------------
+   TABLAS CORPORATIVAS
+   ------------------------------ */
+
+.table-card {
+  max-width: 1000px;
+  margin: 40px auto;
+  background: white;
+  border-radius: 14px;
+  padding: 30px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.table-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1a3c6e;
+  margin-bottom: 10px;
+}
+
+.table-subtitle {
+  font-size: 1rem;
+  color: #5f6c7b;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background: #1a3c6e;
+  color: white;
+}
+
+th, td {
+  padding: 12px 14px;
+  text-align: left;
+}
+
+tbody tr {
+  border-bottom: 1px solid #e0e6ef;
+}
+
+tbody tr:hover {
+  background: #f4f7fb;
+}
+
+/* BOTONES DE ACCIÓN */
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  transition: 0.2s ease;
+}
+
+.btn-print {
+  background: #0066cc;
+}
+
+.btn-print:hover {
+  background: #004c99;
+}
+
+.btn-process {
+  background: #00994d;
+}
+
+.btn-process:hover {
+  background: #007a3e;
+}
+
+.btn-back {
+  background: #5f6c7b;
+  margin-top: 20px;
+}
+
+.btn-back:hover {
+  background: #4a5563;
+}
