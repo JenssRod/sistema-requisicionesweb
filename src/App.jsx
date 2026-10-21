@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -8,19 +8,37 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
-  
-  const audioAlertaRef = useRef(null);
 
+  // SIRENA Y VOZ SIN ARCHIVOS EXTERNOS
   const dispararAlertaSonora = () => {
-    if (audioAlertaRef && audioAlertaRef.current) {
-      audioAlertaRef.current.play().catch(error => {
-        console.log("Audio bloqueado:", error);
-      });
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const hacerSonido = (freq, inicio, dur) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + inicio);
+          gain.gain.setValueAtTime(0.8, ctx.currentTime + inicio);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + inicio + dur);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + inicio);
+          osc.stop(ctx.currentTime + inicio + dur);
+        };
+
+        hacerSonido(900, 0, 0.3);
+        hacerSonido(600, 0.35, 0.3);
+        hacerSonido(900, 0.7, 0.3);
+      }
+    } catch (e) {
+      console.log("Error al reproducir audio:", e);
     }
 
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Hay una nueva requisición pendiente del Sambil.");
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición del Sambil recibida.");
       mensajeVoz.lang = 'es-ES';
       mensajeVoz.rate = 1.0; 
       window.speechSynthesis.speak(mensajeVoz);
@@ -35,7 +53,11 @@ export default function App() {
     if (error) {
       console.error('Error al cargar productos:', error);
     } else if (data) {
-      setProductosCatalogo(data);
+      const formateados = data.map(p => ({
+        ...p,
+        precio: parseFloat(p.precio) || 0
+      }));
+      setProductosCatalogo(formateados);
     }
   };
 
@@ -43,7 +65,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES DESDE SUPABASE Y TIEMPO REAL ---
+  // --- REQUISICIONES REALTIME Y POLLING GLOBAL ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -61,29 +83,30 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // Suscripción Realtime para sincronizar altas y bajas al instante en todos los dispositivos
     const canalRequisiciones = supabase
-      .channel('cambios-requisiciones-global')
+      .channel('canal-alertas-oficina-falcon')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'requisiciones' },
+        { event: 'INSERT', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
-          // Si entra un nuevo pedido y estamos en la vista de Admin / Planta, disparamos la alerta sonora
-          if (payload.eventType === 'INSERT') {
-            setNuevaAlertaAdmin(true);
-            dispararAlertaSonora();
-          }
+          setNuevaAlertaAdmin(true);
+          dispararAlertaSonora();
         }
       )
       .subscribe();
 
+    const intervalo = setInterval(() => {
+      cargarRequisicionesDeSupabase();
+    }, 2000);
+
     return () => {
       supabase.removeChannel(canalRequisiciones);
+      clearInterval(intervalo);
     };
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE (CON LOCALSTORAGE DE RESPALDO) ---
+  // --- TASA BCV DESDE SUPABASE ---
   const [tasaBcv, setTasaBcv] = useState(() => {
     const guardada = localStorage.getItem('falcon_tasa_bcv');
     return guardada ? parseFloat(guardada) : 30.50;
@@ -159,6 +182,7 @@ export default function App() {
     if (adminEncontrado || (usuarioActual === 'admin' && claveAdminInput === 'falcon2026')) {
       setModo('admin');
       setClaveAdminInput('');
+      setNuevaAlertaAdmin(false);
     } else {
       alert("❌ Contraseña de Administrador incorrecta.");
     }
@@ -166,14 +190,13 @@ export default function App() {
 
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-      <audio ref={audioAlertaRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
 
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
             <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b', marginBottom: '20px' }} />
             <h1 style={{ color: '#f59e0b', fontSize: '24px', margin: '0 0 5px 0' }}>FALCON CREST</h1>
-            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control de Quesos — Sambil Punto Fijo</p>
+            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button 
@@ -251,12 +274,12 @@ export default function App() {
         />
       )}
 
-      {modo !== 'sucursal' && (
-        <BannerNuevaRequisicion 
-          nuevaAlertaAdmin={nuevaAlertaAdmin} 
-          setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
-        />
-      )}
+      {/* BANNER ROJO FLOTANTE GLOBAL */}
+      <BannerNuevaRequisicion 
+        nuevaAlertaAdmin={nuevaAlertaAdmin} 
+        setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
+        setModo={setModo}
+      />
     </div>
   );
 }
@@ -284,10 +307,14 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
   const agregarAlCarrito = (producto) => {
     setRequisicion(prev => {
-      const actual = prev[producto.id] ? prev[producto.id].cantidad : 0;
+      const actual = prev[producto.id] ? parseFloat(prev[producto.id].cantidad) || 0 : 0;
       return {
         ...prev,
-        [producto.id]: { ...producto, cantidad: actual + 1 }
+        [producto.id]: { 
+          ...producto, 
+          precio: parseFloat(producto.precio) || 0,
+          cantidad: actual + 1 
+        }
       };
     });
   };
@@ -305,8 +332,14 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     });
   };
 
-  const totalItems = Object.values(requisicion).reduce((acc, item) => acc + item.cantidad, 0);
-  const totalUSD = Object.values(requisicion).reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+  const totalItems = Object.values(requisicion).reduce((acc, item) => acc + (parseFloat(item.cantidad) || 0), 0);
+  
+  const totalUSD = Object.values(requisicion).reduce((acc, item) => {
+    const precioNum = parseFloat(item.precio) || 0;
+    const cantNum = parseFloat(item.cantidad) || 0;
+    return acc + (precioNum * cantNum);
+  }, 0);
+
   const totalBS = totalUSD * (parseFloat(tasaBcv) || 1);
 
   const enviarRequisicionAPlanta = async () => {
@@ -331,7 +364,6 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     await guardarRequisicionEnNube(nuevaOrden);
     await cargarRequisicionesDeSupabase();
 
-    // Sin alertas sonoras ni banners en la sucursal del Sambil
     setMensajeExito("¡Requisición enviada con éxito a Planta / Producción!");
     setTimeout(() => setMensajeExito(''), 4000);
     setRequisicion({});
@@ -415,7 +447,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                     </span>
                     <h4 style={{ fontSize: '14px', margin: '8px 0', color: '#fff' }}>{prod.nombre}</h4>
                     <p style={{ fontSize: '14px', color: '#34d399', margin: '0 0 14px 0', fontWeight: 'bold' }}>
-                      ${(Number(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#9ca3af' }}>/ {prod.unidad}</span>
+                      ${(parseFloat(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#9ca3af' }}>/ {prod.unidad}</span>
                     </p>
                   </div>
                   <button onClick={() => agregarAlCarrito(prod)} style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '9px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -440,7 +472,9 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '12px' }}>
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
                   <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px' }} />
-                  <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>${(item.precio * item.cantidad).toFixed(2)}</span>
+                  <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>
+                    ${((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0)).toFixed(2)}
+                  </span>
                 </div>
               ))
             )}
@@ -547,12 +581,12 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               <tr><th>Cant.</th><th>Artículo</th><th>Presentación</th><th>Subtotal ($)</th></tr>
             </thead>
             <tbody>
-              ${orden.items.map(i => `<tr><td>${i.cantidad}</td><td>${i.nombre}</td><td>${i.unidad}</td><td>$${(i.precio * i.cantidad).toFixed(2)}</td></tr>`).join('')}
+              ${orden.items.map(i => `<tr><td>${i.cantidad}</td><td>${i.nombre}</td><td>${i.unidad}</td><td>$${((parseFloat(i.precio) || 0) * (parseFloat(i.cantidad) || 0)).toFixed(2)}</td></tr>`).join('')}
             </tbody>
           </table>
           <div class="total">
-            <p>Total USD: $${orden.totalUSD.toFixed(2)}</p>
-            <p>Total BS (Tasa ${orden.tasaBcvAplicada || tasaBcv}): Bs. ${orden.totalBS.toFixed(2)}</p>
+            <p>Total USD: $${(parseFloat(orden.totalUSD) || 0).toFixed(2)}</p>
+            <p>Total BS (Tasa ${orden.tasaBcvAplicada || tasaBcv}): Bs. ${(parseFloat(orden.totalBS) || 0).toFixed(2)}</p>
           </div>
         </body>
       </html>
@@ -772,7 +806,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           🔐 Claves Admin
         </button>
         
-        {/* BOTÓN PARA BORRAR TODO EL CATÁLOGO */}
         <button onClick={vaciarTodosLosArticulos} style={{ marginLeft: 'auto', backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
           🗑️ Borrar Todos los Artículos ({productosCatalogo.length})
         </button>
@@ -810,7 +843,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                             {ord.prioridad}
                           </span>
                         </td>
-                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(ord.totalUSD || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(ord.totalUSD) || 0).toFixed(2)}</td>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>{ord.estatus}</td>
                         <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
                           <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#374151', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ver</button>
@@ -853,14 +886,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 {ordenSeleccionada.items && ordenSeleccionada.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
                     <span>{it.cantidad} {it.unidad} - {it.nombre}</span>
-                    <span style={{ color: '#34d399' }}>${((it.precio || 0) * (it.cantidad || 0)).toFixed(2)}</span>
+                    <span style={{ color: '#34d399' }}>${((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0)).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
 
               <div style={{ borderTop: '1px solid #374151', paddingTop: '10px', marginBottom: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(ordenSeleccionada.totalUSD || 0).toFixed(2)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. {(ordenSeleccionada.totalBS || 0).toFixed(2)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(parseFloat(ordenSeleccionada.totalUSD) || 0).toFixed(2)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. ${(parseFloat(ordenSeleccionada.totalBS) || 0).toFixed(2)}</span></div>
               </div>
 
               <button onClick={() => imprimirOrden(ordenSeleccionada)} style={{ width: '100%', backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -871,7 +904,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CONTENIDO DE PRECIOS */}
       {pestana === 'precios' && (
         <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '12px', border: '1px solid #1f2937' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Gestión y Edición Completa de Artículos / Precios</h3>
@@ -945,7 +977,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, precio: e.target.value })}
                               style={{ width: '80px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }}
                             />
-                          ) : `$${(Number(p.precio) || 0).toFixed(2)}`}
+                          ) : `$${(parseFloat(p.precio) || 0).toFixed(2)}`}
                         </td>
 
                         <td style={{ padding: '10px' }}>
@@ -971,7 +1003,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CARGA MASIVA */}
       {pestana === 'crear_producto' && (
         <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '600px' }}>
           <h3 style={{ color: '#38bdf8', margin: '0 0 10px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
@@ -995,7 +1026,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CLAVES ADMIN */}
       {pestana === 'seguridad' && (
         <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '500px' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>🔐 Cambio de Claves de Administradores</h3>
@@ -1038,26 +1068,32 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
   }
 };
 
-function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin }) {
+function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo }) {
   if (!nuevaAlertaAdmin) return null;
   return (
     <div
-      onClick={() => setNuevaAlertaAdmin(false)}
+      onClick={() => {
+        setNuevaAlertaAdmin(false);
+        setModo('admin');
+      }}
       style={{
         position: 'fixed',
-        top: '70px',
+        top: '20px',
         right: '25px',
-        backgroundColor: '#EF4444',
+        backgroundColor: '#DC2626',
         color: '#fff',
-        padding: '12px 20px',
-        borderRadius: '10px',
-        fontSize: '14px',
+        padding: '18px 26px',
+        borderRadius: '12px',
+        fontSize: '16px',
         fontWeight: 'bold',
-        zIndex: 99999,
-        cursor: 'pointer'
+        zIndex: 999999,
+        cursor: 'pointer',
+        boxShadow: '0 10px 25px rgba(220, 38, 38, 0.7)',
+        border: '3px solid #FEF08A'
       }}
     >
-      🚨 ¡Atención! Hay una nueva requisición pendiente. (Haz clic para cerrar)
+      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! <br/>
+      <span style={{ fontSize: '13px', textDecoration: 'underline' }}>Haz clic aquí para ver la orden</span>
     </div>
   );
 }
