@@ -62,17 +62,29 @@ export default function App() {
     cargarRequisicionesDeSupabase();
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE ---
+  // --- TASA BCV DESDE SUPABASE (PERSISTENCIA GARANTIZADA) ---
   const [tasaBcv, setTasaBcv] = useState(30.50);
 
   const cargarTasaDeSupabase = async () => {
     try {
-      const { data, error } = await supabase.from('tasa_bcv').select('*').eq('id', 1).single();
-      if (data && data.valor && !isNaN(parseFloat(data.valor))) {
-        setTasaBcv(parseFloat(data.valor));
+      const { data, error } = await supabase
+        .from('tasa_bcv')
+        .select('*')
+        .limit(1);
+
+      if (error) {
+        console.error("Error al consultar tasa en Supabase:", error);
+        return;
+      }
+
+      if (data && data.length > 0 && data[0].valor) {
+        const val = parseFloat(data[0].valor);
+        if (!isNaN(val) && val > 0) {
+          setTasaBcv(val);
+        }
       }
     } catch (e) {
-      console.error("Error al cargar la tasa:", e);
+      console.error("Error inesperado al cargar la tasa:", e);
     }
   };
 
@@ -80,15 +92,25 @@ export default function App() {
     cargarTasaDeSupabase();
   }, []);
 
-  // Función para guardar directamente en Supabase con UPSERT
+  // Función para guardar con fallback automático (Update -> Insert)
   const guardarTasaEnSupabase = async (nuevoValor) => {
     const valorNumerico = parseFloat(nuevoValor);
     if (isNaN(valorNumerico) || valorNumerico <= 0) return;
 
     try {
-      await supabase
+      // 1. Intentamos actualizar el registro existente
+      const { data: updateData, error: updateError } = await supabase
         .from('tasa_bcv')
-        .upsert([{ id: 1, valor: valorNumerico }]);
+        .update({ valor: valorNumerico })
+        .neq('id', 0) // Aplica a cualquier registro
+        .select();
+
+      // 2. Si no había registro previo para actualizar, creamos uno nuevo
+      if (updateError || !updateData || updateData.length === 0) {
+        await supabase
+          .from('tasa_bcv')
+          .insert([{ id: 1, valor: valorNumerico }]);
+      }
     } catch (e) {
       console.error("Error al guardar la tasa en la nube:", e);
     }
