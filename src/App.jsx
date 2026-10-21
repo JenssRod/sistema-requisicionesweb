@@ -13,6 +13,7 @@ export default function App() {
 
   const dispararAlertaSonora = () => {
     if (audioAlertaRef && audioAlertaRef.current) {
+      audioAlertaRef.current.currentTime = 0;
       audioAlertaRef.current.play().catch(error => {
         console.log("Audio bloqueado:", error);
       });
@@ -35,7 +36,11 @@ export default function App() {
     if (error) {
       console.error('Error al cargar productos:', error);
     } else if (data) {
-      setProductosCatalogo(data);
+      const formateados = data.map(p => ({
+        ...p,
+        precio: parseFloat(p.precio) || 0
+      }));
+      setProductosCatalogo(formateados);
     }
   };
 
@@ -43,7 +48,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES DESDE SUPABASE Y TIEMPO REAL ---
+  // --- REQUISICIONES DESDE SUPABASE, REALTIME Y POLLING ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -61,15 +66,14 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // Suscripción Realtime para sincronizar altas y bajas al instante en todos los dispositivos
+    // 1. Canal Realtime en vivo
     const canalRequisiciones = supabase
-      .channel('cambios-requisiciones-global')
+      .channel('cambios-requisiciones-instantaneos')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
-          // Si entra un nuevo pedido y estamos en la vista de Admin / Planta, disparamos la alerta sonora
           if (payload.eventType === 'INSERT') {
             setNuevaAlertaAdmin(true);
             dispararAlertaSonora();
@@ -78,12 +82,18 @@ export default function App() {
       )
       .subscribe();
 
+    // 2. Polling de respaldo cada 3 segundos (desaparición automática de requisiciones borradas)
+    const intervalo = setInterval(() => {
+      cargarRequisicionesDeSupabase();
+    }, 3000);
+
     return () => {
       supabase.removeChannel(canalRequisiciones);
+      clearInterval(intervalo);
     };
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE (CON LOCALSTORAGE DE RESPALDO) ---
+  // --- TASA BCV DESDE SUPABASE ---
   const [tasaBcv, setTasaBcv] = useState(() => {
     const guardada = localStorage.getItem('falcon_tasa_bcv');
     return guardada ? parseFloat(guardada) : 30.50;
@@ -284,10 +294,14 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
   const agregarAlCarrito = (producto) => {
     setRequisicion(prev => {
-      const actual = prev[producto.id] ? prev[producto.id].cantidad : 0;
+      const actual = prev[producto.id] ? parseFloat(prev[producto.id].cantidad) || 0 : 0;
       return {
         ...prev,
-        [producto.id]: { ...producto, cantidad: actual + 1 }
+        [producto.id]: { 
+          ...producto, 
+          precio: parseFloat(producto.precio) || 0,
+          cantidad: actual + 1 
+        }
       };
     });
   };
@@ -305,8 +319,14 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     });
   };
 
-  const totalItems = Object.values(requisicion).reduce((acc, item) => acc + item.cantidad, 0);
-  const totalUSD = Object.values(requisicion).reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+  const totalItems = Object.values(requisicion).reduce((acc, item) => acc + (parseFloat(item.cantidad) || 0), 0);
+  
+  const totalUSD = Object.values(requisicion).reduce((acc, item) => {
+    const precioNum = parseFloat(item.precio) || 0;
+    const cantNum = parseFloat(item.cantidad) || 0;
+    return acc + (precioNum * cantNum);
+  }, 0);
+
   const totalBS = totalUSD * (parseFloat(tasaBcv) || 1);
 
   const enviarRequisicionAPlanta = async () => {
@@ -331,7 +351,6 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     await guardarRequisicionEnNube(nuevaOrden);
     await cargarRequisicionesDeSupabase();
 
-    // Sin alertas sonoras ni banners en la sucursal del Sambil
     setMensajeExito("¡Requisición enviada con éxito a Planta / Producción!");
     setTimeout(() => setMensajeExito(''), 4000);
     setRequisicion({});
@@ -415,7 +434,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                     </span>
                     <h4 style={{ fontSize: '14px', margin: '8px 0', color: '#fff' }}>{prod.nombre}</h4>
                     <p style={{ fontSize: '14px', color: '#34d399', margin: '0 0 14px 0', fontWeight: 'bold' }}>
-                      ${(Number(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#9ca3af' }}>/ {prod.unidad}</span>
+                      ${(parseFloat(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#9ca3af' }}>/ {prod.unidad}</span>
                     </p>
                   </div>
                   <button onClick={() => agregarAlCarrito(prod)} style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '9px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -440,7 +459,9 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '12px' }}>
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
                   <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px' }} />
-                  <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>${(item.precio * item.cantidad).toFixed(2)}</span>
+                  <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>
+                    ${((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0)).toFixed(2)}
+                  </span>
                 </div>
               ))
             )}
@@ -547,12 +568,12 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               <tr><th>Cant.</th><th>Artículo</th><th>Presentación</th><th>Subtotal ($)</th></tr>
             </thead>
             <tbody>
-              ${orden.items.map(i => `<tr><td>${i.cantidad}</td><td>${i.nombre}</td><td>${i.unidad}</td><td>$${(i.precio * i.cantidad).toFixed(2)}</td></tr>`).join('')}
+              ${orden.items.map(i => `<tr><td>${i.cantidad}</td><td>${i.nombre}</td><td>${i.unidad}</td><td>$${((parseFloat(i.precio) || 0) * (parseFloat(i.cantidad) || 0)).toFixed(2)}</td></tr>`).join('')}
             </tbody>
           </table>
           <div class="total">
-            <p>Total USD: $${orden.totalUSD.toFixed(2)}</p>
-            <p>Total BS (Tasa ${orden.tasaBcvAplicada || tasaBcv}): Bs. ${orden.totalBS.toFixed(2)}</p>
+            <p>Total USD: $${(parseFloat(orden.totalUSD) || 0).toFixed(2)}</p>
+            <p>Total BS (Tasa ${orden.tasaBcvAplicada || tasaBcv}): Bs. ${(parseFloat(orden.totalBS) || 0).toFixed(2)}</p>
           </div>
         </body>
       </html>
@@ -810,7 +831,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                             {ord.prioridad}
                           </span>
                         </td>
-                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(ord.totalUSD || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(ord.totalUSD) || 0).toFixed(2)}</td>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>{ord.estatus}</td>
                         <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
                           <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#374151', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ver</button>
@@ -853,14 +874,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 {ordenSeleccionada.items && ordenSeleccionada.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
                     <span>{it.cantidad} {it.unidad} - {it.nombre}</span>
-                    <span style={{ color: '#34d399' }}>${((it.precio || 0) * (it.cantidad || 0)).toFixed(2)}</span>
+                    <span style={{ color: '#34d399' }}>${((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0)).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
 
               <div style={{ borderTop: '1px solid #374151', paddingTop: '10px', marginBottom: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(ordenSeleccionada.totalUSD || 0).toFixed(2)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. {(ordenSeleccionada.totalBS || 0).toFixed(2)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(parseFloat(ordenSeleccionada.totalUSD) || 0).toFixed(2)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. ${(parseFloat(ordenSeleccionada.totalBS) || 0).toFixed(2)}</span></div>
               </div>
 
               <button onClick={() => imprimirOrden(ordenSeleccionada)} style={{ width: '100%', backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -945,7 +966,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, precio: e.target.value })}
                               style={{ width: '80px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }}
                             />
-                          ) : `$${(Number(p.precio) || 0).toFixed(2)}`}
+                          ) : `$${(parseFloat(p.precio) || 0).toFixed(2)}`}
                         </td>
 
                         <td style={{ padding: '10px' }}>
