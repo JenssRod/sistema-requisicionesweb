@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -8,31 +8,37 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
-  const [audioHabilitado, setAudioHabilitado] = useState(false);
-  
-  const audioAlertaRef = useRef(null);
 
-  const habilitarAudioManual = () => {
-    if (audioAlertaRef && audioAlertaRef.current) {
-      audioAlertaRef.current.play().then(() => {
-        audioAlertaRef.current.pause();
-        audioAlertaRef.current.currentTime = 0;
-        setAudioHabilitado(true);
-      }).catch(e => console.log("Audio no habilitado:", e));
-    }
-  };
-
+  // SIRENA GENERADA DIRECTAMENTE POR LA PC (SIN ARCHIVOS MP3 QUE PUEDAN FALLAR)
   const dispararAlertaSonora = () => {
-    if (audioAlertaRef && audioAlertaRef.current) {
-      audioAlertaRef.current.currentTime = 0;
-      audioAlertaRef.current.play().catch(error => {
-        console.log("Audio bloqueado por el navegador:", error);
-      });
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.5);
+
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.log("Error al reproducir beep:", e);
     }
 
+    // VOZ HABLADA
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Hay una nueva requisición pendiente del Sambil.");
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Hay una nueva requisición de la sucursal.");
       mensajeVoz.lang = 'es-ES';
       mensajeVoz.rate = 1.0; 
       window.speechSynthesis.speak(mensajeVoz);
@@ -93,7 +99,7 @@ export default function App() {
       )
       .subscribe();
 
-    // Consulta de respaldo cada 3 segundos
+    // Polling de respaldo cada 3 segundos
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
     }, 3000);
@@ -187,7 +193,6 @@ export default function App() {
 
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-      <audio ref={audioAlertaRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
 
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
@@ -269,8 +274,6 @@ export default function App() {
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-          audioHabilitado={audioHabilitado}
-          habilitarAudioManual={habilitarAudioManual}
           dispararAlertaSonora={dispararAlertaSonora}
         />
       )}
@@ -495,7 +498,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase, audioHabilitado, habilitarAudioManual, dispararAlertaSonora }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase, dispararAlertaSonora }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -763,14 +766,11 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* BOTÓN PARA ACTIVAR/PROBAR SONIDO */}
+          {/* BOTÓN PROBAR SONIDO DIRECTO */}
           <button 
-            onClick={() => {
-              habilitarAudioManual();
-              dispararAlertaSonora();
-            }}
+            onClick={dispararAlertaSonora}
             style={{ 
-              backgroundColor: audioHabilitado ? '#059669' : '#d97706', 
+              backgroundColor: '#d97706', 
               color: '#fff', 
               border: 'none', 
               padding: '8px 14px', 
@@ -780,7 +780,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               cursor: 'pointer' 
             }}
           >
-            {audioHabilitado ? '🔔 Sonido Activo (Probar)' : '⚠️ Clic aquí para Activar Sonido'}
+            🔔 Probar Sonido
           </button>
 
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
