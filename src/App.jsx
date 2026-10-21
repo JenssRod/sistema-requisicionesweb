@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -8,37 +8,77 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
+  
+  const audioCtxRef = useRef(null);
 
-  // SIRENA GENERADA DIRECTAMENTE POR LA PC (SIN ARCHIVOS MP3 QUE PUEDAN FALLAR)
+  // INICIALIZADOR DE AUDIO AUTOMÁTICO (Desbloquea el motor de audio al primer toque en cualquier parte de la página)
+  useEffect(() => {
+    const desbloquearAudioAutomatico = () => {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx && !audioCtxRef.current) {
+          audioCtxRef.current = new AudioCtx();
+        }
+        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume();
+        }
+      } catch (e) {
+        console.log("Audio desbloqueado:", e);
+      }
+      // Remueve los escuchas una vez activado
+      window.removeEventListener('click', desbloquearAudioAutomatico);
+      window.removeEventListener('keydown', desbloquearAudioAutomatico);
+      window.removeEventListener('touchstart', desbloquearAudioAutomatico);
+    };
+
+    window.addEventListener('click', desbloquearAudioAutomatico);
+    window.addEventListener('keydown', desbloquearAudioAutomatico);
+    window.addEventListener('touchstart', desbloquearAudioAutomatico);
+
+    return () => {
+      window.removeEventListener('click', desbloquearAudioAutomatico);
+      window.removeEventListener('keydown', desbloquearAudioAutomatico);
+      window.removeEventListener('touchstart', desbloquearAudioAutomatico);
+    };
+  }, []);
+
+  // SIRENA Y VOZ AUTOMÁTICA (Suena fuerte incluso si está minimizado)
   const dispararAlertaSonora = () => {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
+      if (!audioCtxRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioCtxRef.current = new AudioCtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      // Triple pitido de sirena de alta prioridad
+      const hacerTono = (frecuencia, tiempoInicio, duracion) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.5);
-
-        gain.gain.setValueAtTime(0.5, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-
+        osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
+        gain.gain.setValueAtTime(0.8, ctx.currentTime + tiempoInicio);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
         osc.connect(gain);
         gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + tiempoInicio);
+        osc.stop(ctx.currentTime + tiempoInicio + duracion);
+      };
 
-        osc.start();
-        osc.stop(ctx.currentTime + 0.5);
-      }
+      hacerTono(900, 0, 0.25);
+      hacerTono(600, 0.3, 0.25);
+      hacerTono(900, 0.6, 0.25);
     } catch (e) {
-      console.log("Error al reproducir beep:", e);
+      console.log("Error al emitir sirena:", e);
     }
 
-    // VOZ HABLADA
+    // VOZ DE ALERTA NATIVA
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Hay una nueva requisición de la sucursal.");
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición de la sucursal.");
       mensajeVoz.lang = 'es-ES';
       mensajeVoz.rate = 1.0; 
       window.speechSynthesis.speak(mensajeVoz);
@@ -65,7 +105,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES DESDE SUPABASE, REALTIME Y POLLING ---
+  // --- REQUISICIONES Y REALTIME GLOBAL ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -83,14 +123,15 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // Canal Realtime
+    // CANAL REALTIME GLOBAL Y AUTOMÁTICO
     const canalRequisiciones = supabase
-      .channel('cambios-requisiciones-instantaneos')
+      .channel('cambios-requisiciones-global-automatico')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
+          
           if (payload.eventType === 'INSERT') {
             setNuevaAlertaAdmin(true);
             dispararAlertaSonora();
@@ -99,7 +140,7 @@ export default function App() {
       )
       .subscribe();
 
-    // Polling de respaldo cada 3 segundos
+    // Consulta de respaldo automática cada 3 segundos (Polling)
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
     }, 3000);
@@ -186,6 +227,7 @@ export default function App() {
     if (adminEncontrado || (usuarioActual === 'admin' && claveAdminInput === 'falcon2026')) {
       setModo('admin');
       setClaveAdminInput('');
+      setNuevaAlertaAdmin(false);
     } else {
       alert("❌ Contraseña de Administrador incorrecta.");
     }
@@ -199,7 +241,7 @@ export default function App() {
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
             <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b', marginBottom: '20px' }} />
             <h1 style={{ color: '#f59e0b', fontSize: '24px', margin: '0 0 5px 0' }}>FALCON CREST</h1>
-            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control de Quesos — Sambil Punto Fijo</p>
+            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button 
@@ -278,12 +320,12 @@ export default function App() {
         />
       )}
 
-      {modo !== 'sucursal' && (
-        <BannerNuevaRequisicion 
-          nuevaAlertaAdmin={nuevaAlertaAdmin} 
-          setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
-        />
-      )}
+      {/* BANNER ROJO FLOTANTE GLOBAL AUTOMÁTICO */}
+      <BannerNuevaRequisicion 
+        nuevaAlertaAdmin={nuevaAlertaAdmin} 
+        setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
+        setModo={setModo}
+      />
     </div>
   );
 }
@@ -1093,26 +1135,32 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
   }
 };
 
-function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin }) {
+function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo }) {
   if (!nuevaAlertaAdmin) return null;
   return (
     <div
-      onClick={() => setNuevaAlertaAdmin(false)}
+      onClick={() => {
+        setNuevaAlertaAdmin(false);
+        setModo('admin');
+      }}
       style={{
         position: 'fixed',
-        top: '70px',
+        top: '20px',
         right: '25px',
-        backgroundColor: '#EF4444',
+        backgroundColor: '#DC2626',
         color: '#fff',
-        padding: '12px 20px',
-        borderRadius: '10px',
-        fontSize: '14px',
+        padding: '16px 24px',
+        borderRadius: '12px',
+        fontSize: '15px',
         fontWeight: 'bold',
-        zIndex: 99999,
-        cursor: 'pointer'
+        zIndex: 999999,
+        cursor: 'pointer',
+        boxShadow: '0 10px 25px rgba(220, 38, 38, 0.5)',
+        border: '2px solid #FEF08A'
       }}
     >
-      🚨 ¡Atención! Hay una nueva requisición pendiente. (Haz clic para cerrar)
+      🚨 ¡ATENCIÓN! Llegó una NUEVA REQUISICIÓN del Sambil. <br/>
+      <span style={{ fontSize: '12px', textDecoration: 'underline' }}>Haz clic aquí para ir al Panel y verla</span>
     </div>
   );
 }
