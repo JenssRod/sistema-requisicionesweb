@@ -43,7 +43,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES DESDE SUPABASE ---
+  // --- REQUISICIONES DESDE SUPABASE Y TIEMPO REAL ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -60,10 +60,34 @@ export default function App() {
 
   useEffect(() => {
     cargarRequisicionesDeSupabase();
+
+    // Suscripción Realtime para sincronizar altas y bajas al instante en todos los dispositivos
+    const canalRequisiciones = supabase
+      .channel('cambios-requisiciones-global')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'requisiciones' },
+        (payload) => {
+          cargarRequisicionesDeSupabase();
+          // Si entra un nuevo pedido y estamos en la vista de Admin / Planta, disparamos la alerta sonora
+          if (payload.eventType === 'INSERT') {
+            setNuevaAlertaAdmin(true);
+            dispararAlertaSonora();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalRequisiciones);
+    };
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE (PERSISTENCIA GARANTIZADA) ---
-  const [tasaBcv, setTasaBcv] = useState(30.50);
+  // --- TASA BCV DESDE SUPABASE (CON LOCALSTORAGE DE RESPALDO) ---
+  const [tasaBcv, setTasaBcv] = useState(() => {
+    const guardada = localStorage.getItem('falcon_tasa_bcv');
+    return guardada ? parseFloat(guardada) : 30.50;
+  });
 
   const cargarTasaDeSupabase = async () => {
     try {
@@ -72,19 +96,15 @@ export default function App() {
         .select('*')
         .limit(1);
 
-      if (error) {
-        console.error("Error al consultar tasa en Supabase:", error);
-        return;
-      }
-
-      if (data && data.length > 0 && data[0].valor) {
+      if (!error && data && data.length > 0 && data[0].valor) {
         const val = parseFloat(data[0].valor);
         if (!isNaN(val) && val > 0) {
           setTasaBcv(val);
+          localStorage.setItem('falcon_tasa_bcv', val.toString());
         }
       }
     } catch (e) {
-      console.error("Error inesperado al cargar la tasa:", e);
+      console.error("Error al cargar la tasa:", e);
     }
   };
 
@@ -92,20 +112,19 @@ export default function App() {
     cargarTasaDeSupabase();
   }, []);
 
-  // Función para guardar con fallback automático (Update -> Insert)
   const guardarTasaEnSupabase = async (nuevoValor) => {
     const valorNumerico = parseFloat(nuevoValor);
     if (isNaN(valorNumerico) || valorNumerico <= 0) return;
 
+    localStorage.setItem('falcon_tasa_bcv', valorNumerico.toString());
+
     try {
-      // 1. Intentamos actualizar el registro existente
       const { data: updateData, error: updateError } = await supabase
         .from('tasa_bcv')
         .update({ valor: valorNumerico })
-        .neq('id', 0) // Aplica a cualquier registro
+        .neq('id', 0)
         .select();
 
-      // 2. Si no había registro previo para actualizar, creamos uno nuevo
       if (updateError || !updateData || updateData.length === 0) {
         await supabase
           .from('tasa_bcv')
@@ -209,8 +228,6 @@ export default function App() {
           tasaBcv={tasaBcv}
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
-          dispararAlertaSonora={dispararAlertaSonora}
-          setNuevaAlertaAdmin={setNuevaAlertaAdmin}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
         />
       )}
@@ -244,7 +261,7 @@ export default function App() {
   );
 }
 
-function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, dispararAlertaSonora, setNuevaAlertaAdmin, cargarRequisicionesDeSupabase }) {
+function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
   const [requisicion, setRequisicion] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('TODOS');
@@ -314,9 +331,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     await guardarRequisicionEnNube(nuevaOrden);
     await cargarRequisicionesDeSupabase();
 
-    setNuevaAlertaAdmin(true);
-    dispararAlertaSonora();
-
+    // Sin alertas sonoras ni banners en la sucursal del Sambil
     setMensajeExito("¡Requisición enviada con éxito a Planta / Producción!");
     setTimeout(() => setMensajeExito(''), 4000);
     setRequisicion({});
