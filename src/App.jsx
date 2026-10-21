@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -8,77 +8,41 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
-  
-  const audioCtxRef = useRef(null);
 
-  // INICIALIZADOR DE AUDIO AUTOMÁTICO (Desbloquea el motor de audio al primer toque en cualquier parte de la página)
-  useEffect(() => {
-    const desbloquearAudioAutomatico = () => {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx && !audioCtxRef.current) {
-          audioCtxRef.current = new AudioCtx();
-        }
-        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-          audioCtxRef.current.resume();
-        }
-      } catch (e) {
-        console.log("Audio desbloqueado:", e);
-      }
-      // Remueve los escuchas una vez activado
-      window.removeEventListener('click', desbloquearAudioAutomatico);
-      window.removeEventListener('keydown', desbloquearAudioAutomatico);
-      window.removeEventListener('touchstart', desbloquearAudioAutomatico);
-    };
-
-    window.addEventListener('click', desbloquearAudioAutomatico);
-    window.addEventListener('keydown', desbloquearAudioAutomatico);
-    window.addEventListener('touchstart', desbloquearAudioAutomatico);
-
-    return () => {
-      window.removeEventListener('click', desbloquearAudioAutomatico);
-      window.removeEventListener('keydown', desbloquearAudioAutomatico);
-      window.removeEventListener('touchstart', desbloquearAudioAutomatico);
-    };
-  }, []);
-
-  // SIRENA Y VOZ AUTOMÁTICA (Suena fuerte incluso si está minimizado)
+  // ALERTA SONORA AUTOMÁTICA CON SÍNTESIS Y WEB AUDIO API
   const dispararAlertaSonora = () => {
     try {
-      if (!audioCtxRef.current) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        audioCtxRef.current = new AudioCtx();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
 
-      // Triple pitido de sirena de alta prioridad
-      const hacerTono = (frecuencia, tiempoInicio, duracion) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
-        gain.gain.setValueAtTime(0.8, ctx.currentTime + tiempoInicio);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + tiempoInicio);
-        osc.stop(ctx.currentTime + tiempoInicio + duracion);
-      };
+        const hacerBip = (frecuencia, inicio, duracion) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + inicio);
+          gain.gain.setValueAtTime(0.9, ctx.currentTime + inicio);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + inicio + duracion);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + inicio);
+          osc.stop(ctx.currentTime + inicio + duracion);
+        };
 
-      hacerTono(900, 0, 0.25);
-      hacerTono(600, 0.3, 0.25);
-      hacerTono(900, 0.6, 0.25);
+        // Secuencia tipo sirena industrial
+        hacerBip(900, 0, 0.25);
+        hacerBip(600, 0.3, 0.25);
+        hacerBip(900, 0.6, 0.25);
+        hacerBip(600, 0.9, 0.25);
+      }
     } catch (e) {
-      console.log("Error al emitir sirena:", e);
+      console.error("Error al reproducir sonido:", e);
     }
 
-    // VOZ DE ALERTA NATIVA
+    // VOZ DE ALERTA AUTOMÁTICA
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición de la sucursal.");
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
       mensajeVoz.lang = 'es-ES';
       mensajeVoz.rate = 1.0; 
       window.speechSynthesis.speak(mensajeVoz);
@@ -105,7 +69,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES Y REALTIME GLOBAL ---
+  // --- REQUISICIONES, POLLING Y REALTIME GLOBAL (ACTIVO SIEMPRE) ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -123,27 +87,24 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // CANAL REALTIME GLOBAL Y AUTOMÁTICO
+    // CANAL EN TIEMPO REAL NATIVO
     const canalRequisiciones = supabase
-      .channel('cambios-requisiciones-global-automatico')
+      .channel('cambios-requisiciones-planta-instantaneo')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'requisiciones' },
+        { event: 'INSERT', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
-          
-          if (payload.eventType === 'INSERT') {
-            setNuevaAlertaAdmin(true);
-            dispararAlertaSonora();
-          }
+          setNuevaAlertaAdmin(true);
+          dispararAlertaSonora();
         }
       )
       .subscribe();
 
-    // Consulta de respaldo automática cada 3 segundos (Polling)
+    // RESPALDO EN SEGUNDO PLANO (CADA 2 SEGUNDOS)
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
-    }, 3000);
+    }, 2000);
 
     return () => {
       supabase.removeChannel(canalRequisiciones);
@@ -316,11 +277,10 @@ export default function App() {
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-          dispararAlertaSonora={dispararAlertaSonora}
         />
       )}
 
-      {/* BANNER ROJO FLOTANTE GLOBAL AUTOMÁTICO */}
+      {/* BANNER ROJO GLOBAL FLOTANTE QUE SE ACTIVA EN CUALQUIER PANTALLA */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
@@ -540,7 +500,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase, dispararAlertaSonora }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -808,23 +768,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* BOTÓN PROBAR SONIDO DIRECTO */}
-          <button 
-            onClick={dispararAlertaSonora}
-            style={{ 
-              backgroundColor: '#d97706', 
-              color: '#fff', 
-              border: 'none', 
-              padding: '8px 14px', 
-              borderRadius: '8px', 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              cursor: 'pointer' 
-            }}
-          >
-            🔔 Probar Sonido
-          </button>
-
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
@@ -869,7 +812,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           🔐 Claves Admin
         </button>
         
-        {/* BOTÓN PARA BORRAR TODO EL CATÁLOGO */}
         <button onClick={vaciarTodosLosArticulos} style={{ marginLeft: 'auto', backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
           🗑️ Borrar Todos los Artículos ({productosCatalogo.length})
         </button>
@@ -968,7 +910,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CONTENIDO DE PRECIOS */}
       {pestana === 'precios' && (
         <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '12px', border: '1px solid #1f2937' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Gestión y Edición Completa de Artículos / Precios</h3>
@@ -1068,7 +1009,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CARGA MASIVA */}
       {pestana === 'crear_producto' && (
         <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '600px' }}>
           <h3 style={{ color: '#38bdf8', margin: '0 0 10px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
@@ -1092,7 +1032,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* CLAVES ADMIN */}
       {pestana === 'seguridad' && (
         <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '500px' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>🔐 Cambio de Claves de Administradores</h3>
@@ -1149,18 +1088,18 @@ function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo
         right: '25px',
         backgroundColor: '#DC2626',
         color: '#fff',
-        padding: '16px 24px',
+        padding: '18px 26px',
         borderRadius: '12px',
-        fontSize: '15px',
+        fontSize: '16px',
         fontWeight: 'bold',
         zIndex: 999999,
         cursor: 'pointer',
-        boxShadow: '0 10px 25px rgba(220, 38, 38, 0.5)',
-        border: '2px solid #FEF08A'
+        boxShadow: '0 10px 25px rgba(220, 38, 38, 0.7)',
+        border: '3px solid #FEF08A'
       }}
     >
-      🚨 ¡ATENCIÓN! Llegó una NUEVA REQUISICIÓN del Sambil. <br/>
-      <span style={{ fontSize: '12px', textDecoration: 'underline' }}>Haz clic aquí para ir al Panel y verla</span>
+      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! <br/>
+      <span style={{ fontSize: '13px', textDecoration: 'underline' }}>Haz clic aquí para ver la orden</span>
     </div>
   );
 }
