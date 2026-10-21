@@ -11,22 +11,22 @@ export default function App() {
 
   const audioRef = useRef(null);
 
-  // MANTIENE EL AUDIO DESBLOQUEADO AUTOMÁTICAMENTE EN SEGUNDO PLANO
+  // MANTIENE EL CANAL DE AUDIO ABIERTO AUTOMÁTICAMENTE
   useEffect(() => {
-    const intentarReproducirSilencio = async () => {
+    const intentarReproducir = async () => {
       try {
         if (audioRef.current) {
-          audioRef.current.volume = 0.01; // Casi inaudible pero mantiene el canal activo
+          audioRef.current.volume = 0.01;
           await audioRef.current.play();
         }
       } catch (e) {
-        console.log("Auto-desbloqueo en segundo plano pendiente de interacción.");
+        console.log("Audio en segundo plano esperando interacción.");
       }
     };
-    intentarReproducirSilencio();
+    intentarReproducir();
   }, []);
 
-  // DISPARADOR DE SIRENA INDUSTRIAL Y VOZ AUTOMÁTICA
+  // DISPARADOR DE SIRENA Y VOZ AUTOMÁTICA
   const dispararAlertaSonora = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -83,7 +83,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL AUTOMÁTICO ---
+  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -102,7 +102,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-total-automatico')
+      .channel('canal-alertas-oficina-original')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -209,7 +209,6 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
 
-      {/* AUDIO INVISIBLE EN BUCLE PARA MANTENER EL MOTOR DESPIERTO */}
       <audio 
         ref={audioRef} 
         src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" 
@@ -300,7 +299,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER ROJO FLOTANTE GLOBAL DE ALERTA */}
+      {/* BANNER ROJO FLOTANTE GLOBAL */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
