@@ -8,14 +8,25 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
+  const [audioHabilitado, setAudioHabilitado] = useState(false);
   
   const audioAlertaRef = useRef(null);
+
+  const habilitarAudioManual = () => {
+    if (audioAlertaRef && audioAlertaRef.current) {
+      audioAlertaRef.current.play().then(() => {
+        audioAlertaRef.current.pause();
+        audioAlertaRef.current.currentTime = 0;
+        setAudioHabilitado(true);
+      }).catch(e => console.log("Audio no habilitado:", e));
+    }
+  };
 
   const dispararAlertaSonora = () => {
     if (audioAlertaRef && audioAlertaRef.current) {
       audioAlertaRef.current.currentTime = 0;
       audioAlertaRef.current.play().catch(error => {
-        console.log("Audio bloqueado:", error);
+        console.log("Audio bloqueado por el navegador:", error);
       });
     }
 
@@ -66,7 +77,7 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // 1. Canal Realtime en vivo
+    // Canal Realtime
     const canalRequisiciones = supabase
       .channel('cambios-requisiciones-instantaneos')
       .on(
@@ -82,7 +93,7 @@ export default function App() {
       )
       .subscribe();
 
-    // 2. Polling de respaldo cada 3 segundos (desaparición automática de requisiciones borradas)
+    // Consulta de respaldo cada 3 segundos
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
     }, 3000);
@@ -258,6 +269,9 @@ export default function App() {
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
+          audioHabilitado={audioHabilitado}
+          habilitarAudioManual={habilitarAudioManual}
+          dispararAlertaSonora={dispararAlertaSonora}
         />
       )}
 
@@ -481,7 +495,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase, audioHabilitado, habilitarAudioManual, dispararAlertaSonora }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -749,6 +763,26 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* BOTÓN PARA ACTIVAR/PROBAR SONIDO */}
+          <button 
+            onClick={() => {
+              habilitarAudioManual();
+              dispararAlertaSonora();
+            }}
+            style={{ 
+              backgroundColor: audioHabilitado ? '#059669' : '#d97706', 
+              color: '#fff', 
+              border: 'none', 
+              padding: '8px 14px', 
+              borderRadius: '8px', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer' 
+            }}
+          >
+            {audioHabilitado ? '🔔 Sonido Activo (Probar)' : '⚠️ Clic aquí para Activar Sonido'}
+          </button>
+
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
