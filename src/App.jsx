@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -9,36 +9,54 @@ export default function App() {
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
 
-  // SIRENA Y VOZ SIN ARCHIVOS EXTERNOS
+  const audioRef = useRef(null);
+
+  // MANTIENE EL AUDIO DESBLOQUEADO AUTOMÁTICAMENTE EN SEGUNDO PLANO
+  useEffect(() => {
+    const intentarReproducirSilencio = async () => {
+      try {
+        if (audioRef.current) {
+          audioRef.current.volume = 0.01; // Casi inaudible pero mantiene el canal activo
+          await audioRef.current.play();
+        }
+      } catch (e) {
+        console.log("Auto-desbloqueo en segundo plano pendiente de interacción.");
+      }
+    };
+    intentarReproducirSilencio();
+  }, []);
+
+  // DISPARADOR DE SIRENA INDUSTRIAL Y VOZ AUTOMÁTICA
   const dispararAlertaSonora = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
-        const hacerSonido = (freq, inicio, dur) => {
+        const hacerTono = (frecuencia, tiempoInicio, duracion) => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + inicio);
-          gain.gain.setValueAtTime(0.8, ctx.currentTime + inicio);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + inicio + dur);
+          osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
+          gain.gain.setValueAtTime(0.9, ctx.currentTime + tiempoInicio);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
           osc.connect(gain);
           gain.connect(ctx.destination);
-          osc.start(ctx.currentTime + inicio);
-          osc.stop(ctx.currentTime + inicio + dur);
+          osc.start(ctx.currentTime + tiempoInicio);
+          osc.stop(ctx.currentTime + tiempoInicio + duracion);
         };
 
-        hacerSonido(900, 0, 0.3);
-        hacerSonido(600, 0.35, 0.3);
-        hacerSonido(900, 0.7, 0.3);
+        hacerTono(950, 0, 0.3);
+        hacerTono(650, 0.35, 0.3);
+        hacerTono(950, 0.7, 0.3);
+        hacerTono(650, 1.05, 0.3);
       }
     } catch (e) {
-      console.log("Error al reproducir audio:", e);
+      console.log("Error de audio:", e);
     }
 
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición del Sambil recibida.");
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
       mensajeVoz.lang = 'es-ES';
       mensajeVoz.rate = 1.0; 
       window.speechSynthesis.speak(mensajeVoz);
@@ -65,7 +83,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y POLLING GLOBAL ---
+  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL AUTOMÁTICO ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -84,7 +102,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-falcon')
+      .channel('canal-alertas-oficina-total-automatico')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -191,6 +209,14 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
 
+      {/* AUDIO INVISIBLE EN BUCLE PARA MANTENER EL MOTOR DESPIERTO */}
+      <audio 
+        ref={audioRef} 
+        src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" 
+        loop 
+        style={{ display: 'none' }} 
+      />
+
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
@@ -274,7 +300,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER ROJO FLOTANTE GLOBAL */}
+      {/* BANNER ROJO FLOTANTE GLOBAL DE ALERTA */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
