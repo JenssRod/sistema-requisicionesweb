@@ -3,9 +3,6 @@ import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
 
-// --- BASE DE DATOS INICIAL DE PRODUCTOS (EN BLANCO PARA CARGA MASIVA) ---
-const PRODUCTOS_INICIALES_DB = [];
-
 export default function App() {
   const [modo, setModo] = useState('menu'); 
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
@@ -30,21 +27,23 @@ export default function App() {
     }
   };
 
-  const [productosCatalogo, setProductosCatalogo] = useState(() => {
-    try {
-      const guardados = localStorage.getItem('falcon_productos');
-      if (guardados) {
-        const parsed = JSON.parse(guardados);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Error al leer localStorage de productos:", e);
-    }
-    return PRODUCTOS_INICIALES_DB;
-  });
+  // --- CATÁLOGO DE PRODUCTOS DESDE SUPABASE ---
+  const [productosCatalogo, setProductosCatalogo] = useState([]);
 
+  const cargarProductosDeSupabase = async () => {
+    const { data, error } = await supabase.from('productos').select('*');
+    if (error) {
+      console.error('Error al cargar productos:', error);
+    } else if (data) {
+      setProductosCatalogo(data);
+    }
+  };
+
+  useEffect(() => {
+    cargarProductosDeSupabase();
+  }, []);
+
+  // --- REQUISICIONES DESDE SUPABASE ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -63,23 +62,24 @@ export default function App() {
     cargarRequisicionesDeSupabase();
   }, []);
 
-  const [tasaBcv, setTasaBcv] = useState(() => {
-    const guardada = localStorage.getItem('falcon_tasa_bcv');
-    return guardada ? JSON.parse(guardada) : 30.50;
-  });
+  // --- TASA BCV DESDE SUPABASE ---
+  const [tasaBcv, setTasaBcv] = useState(30.50);
+
+  const cargarTasaDeSupabase = async () => {
+    try {
+      const { data, error } = await supabase.from('tasa_bcv').select('*').eq('id', 1).single();
+      if (data && data.valor) {
+        setTasaBcv(data.valor);
+      }
+    } catch (e) {
+      console.error("Error al cargar la tasa:", e);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('falcon_tasa_bcv', JSON.stringify(tasaBcv));
-  }, [tasaBcv]);
+    cargarTasaDeSupabase();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('falcon_productos', JSON.stringify(productosCatalogo));
-  }, [productosCatalogo]);
-
-  useEffect(() => {
-    localStorage.setItem('falcon_requisiciones', JSON.stringify(listaRequisiciones));
-  }, [listaRequisiciones]);
-  
   const [cargandoBcvManual, setCargandoBcvManual] = useState(false);
 
   const actualizarTasaBcvManual = async () => {
@@ -243,7 +243,7 @@ export default function App() {
           nuevaAlertaAdmin={nuevaAlertaAdmin}
           setNuevaAlertaAdmin={setNuevaAlertaAdmin}
           productosCatalogo={productosCatalogo}
-          setProductosCatalogo={setProductosCatalogo}
+          cargarProductosDeSupabase={cargarProductosDeSupabase}
           tasaBcv={tasaBcv}
           setTasaBcv={setTasaBcv}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
@@ -266,8 +266,6 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('TODOS');
   
   const [prioridad, setPrioridad] = useState('Normal');
-  const [telefonoWhatsApp, setTelefonoWhatsApp] = useState('584120000000');
-  const [correoDestino, setCorreoDestino] = useState('produccion@falconcrest.com');
   const [observaciones, setObservaciones] = useState('');
   const [mensajeExito, setMensajeExito] = useState('');
 
@@ -465,7 +463,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, setProductosCatalogo, tasaBcv, setTasaBcv, actualizarTasaBcvManual, cargandoBcvManual, cargarRequisicionesDeSupabase }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, actualizarTasaBcvManual, cargandoBcvManual }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -594,18 +592,32 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  const vaciarTodosLosArticulos = () => {
-    if (window.confirm("🚨 ¿ESTÁS SEGURO? Se eliminarán TODOS los artículos del sistema.")) {
-      setProductosCatalogo([]);
-      localStorage.removeItem('falcon_productos');
-      setAlertaAdminMsg("🗑️ Catálogo vaciado con éxito.");
+  const vaciarTodosLosArticulos = async () => {
+    if (window.confirm("🚨 ¿ESTÁS SEGURO? Se eliminarán TODOS los artículos de Supabase.")) {
+      try {
+        const { error } = await supabase.from('productos').delete().neq('id', ''); // Borra todos
+        if (error) {
+          console.error("Error al borrar productos:", error);
+        }
+        await cargarProductosDeSupabase();
+        setAlertaAdminMsg("🗑️ Catálogo vaciado en la nube con éxito.");
+      } catch (err) {
+        console.error("Error:", err);
+      }
       setTimeout(() => setAlertaAdminMsg(''), 4000);
     }
   };
 
-  const eliminarArticuloUnico = (id, nombre) => {
-    if (window.confirm(`¿Eliminar "${nombre}" del catálogo?`)) {
-      setProductosCatalogo(prev => prev.filter(p => p.id !== id));
+  const eliminarArticuloUnico = async (id, nombre) => {
+    if (window.confirm(`¿Eliminar "${nombre}" del catálogo en la nube?`)) {
+      try {
+        await supabase.from('productos').delete().eq('id', id);
+        await cargarProductosDeSupabase();
+        setAlertaAdminMsg(`🗑️ Producto "${nombre}" eliminado.`);
+      } catch (err) {
+        console.error("Error:", err);
+      }
+      setTimeout(() => setAlertaAdminMsg(''), 3000);
     }
   };
 
@@ -619,27 +631,34 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     });
   };
 
-  const guardarEdicionProducto = (id) => {
+  const guardarEdicionProducto = async (id) => {
     if (!datosEdicion.nombre.trim() || isNaN(parseFloat(datosEdicion.precio))) {
       alert("⚠️ Nombre y precio válidos requeridos.");
       return;
     }
 
-    setProductosCatalogo(prev => prev.map(p => {
-      if (p.id === id) {
-        return {
-          ...p,
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({
           nombre: datosEdicion.nombre.trim().toUpperCase(),
           categoria: datosEdicion.categoria,
           unidad: datosEdicion.unidad,
           precio: parseFloat(datosEdicion.precio)
-        };
-      }
-      return p;
-    }));
+        })
+        .eq('id', id);
 
-    setProductoEditandoId(null);
-    setAlertaAdminMsg(`✅ Artículo actualizado con éxito.`);
+      if (error) {
+        alert("❌ Error al actualizar en Supabase.");
+        return;
+      }
+
+      await cargarProductosDeSupabase();
+      setProductoEditandoId(null);
+      setAlertaAdminMsg(`✅ Artículo actualizado en la nube con éxito.`);
+    } catch (err) {
+      console.error("Error:", err);
+    }
     setTimeout(() => setAlertaAdminMsg(''), 3000);
   };
 
@@ -648,7 +667,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const text = evt.target.result;
         const lineas = text.split(/\r\n|\n/);
@@ -678,8 +697,16 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         });
 
         if (nuevosProductos.length > 0) {
-          setProductosCatalogo(prev => [...nuevosProductos, ...prev]);
-          setAlertaAdminMsg(`📊 ¡Se han cargado ${nuevosProductos.length} artículos masivamente con éxito!`);
+          // Guardar directamente en Supabase
+          const { error } = await supabase.from('productos').upsert(nuevosProductos);
+          if (error) {
+            console.error("Error al insertar en Supabase:", error);
+            alert("❌ Hubo un error al guardar en la base de datos.");
+            return;
+          }
+
+          await cargarProductosDeSupabase();
+          setAlertaAdminMsg(`📊 ¡Se han cargado ${nuevosProductos.length} artículos a Supabase con éxito!`);
           setTimeout(() => setAlertaAdminMsg(''), 5000);
         } else {
           alert("⚠️ El archivo no contiene un formato CSV/TXT válido.");

@@ -260,7 +260,7 @@ export default function App() {
   );
 }
 
-function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, dispararAlertaSonora, setNuevaAlertaAdmin, cargarRequisicionesDeSupabase }) {
+function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, dispararAlertaSonora, setNuevaAlertaAdmin, cargarRequisicionesDeSupabase, actualizarTasaBcvManual, cargandoBcvManual }) {
   const [requisicion, setRequisicion] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('TODOS');
@@ -357,7 +357,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             <span style={{ fontSize: '12px', color: '#9ca3af' }}>Sucursal Sambil Punto Fijo | Usuario: <strong style={{ color: '#34d399' }}>Sucursal Única</strong></span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
@@ -367,6 +367,13 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               style={{ padding: '4px', fontSize: '13px', width: '80px', textAlign: 'center', borderRadius: '4px', border: '1px solid #4b5563', background: '#111827', color: '#fff' }}
             />
           </div>
+          <button 
+            onClick={actualizarTasaBcvManual} 
+            disabled={cargandoBcvManual}
+            style={{ padding: '8px 14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+          >
+            {cargandoBcvManual ? "Consultando..." : "🔄 Extraer Tasa BCV"}
+          </button>
           <button onClick={onVolverAlMenu} style={{ backgroundColor: '#374151', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
@@ -698,6 +705,19 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Tasa BCV (Bs):</span>
+            <input type="number" step="0.01" value={tasaBcv} onChange={(e) => setTasaBcv(parseFloat(e.target.value) || 0)} style={{ width: '75px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #4b5563', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} />
+          </div>
+
+          <button 
+            onClick={actualizarTasaBcvManual} 
+            disabled={cargandoBcvManual}
+            style={{ padding: '8px 14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            {cargandoBcvManual ? "Consultando..." : "🔄 Extraer Tasa BCV"}
+          </button>
+
           <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
