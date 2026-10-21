@@ -68,8 +68,8 @@ export default function App() {
   const cargarTasaDeSupabase = async () => {
     try {
       const { data, error } = await supabase.from('tasa_bcv').select('*').eq('id', 1).single();
-      if (data && data.valor) {
-        setTasaBcv(data.valor);
+      if (data && data.valor && !isNaN(parseFloat(data.valor))) {
+        setTasaBcv(parseFloat(data.valor));
       }
     } catch (e) {
       console.error("Error al cargar la tasa:", e);
@@ -80,59 +80,18 @@ export default function App() {
     cargarTasaDeSupabase();
   }, []);
 
-  // Función para guardar automáticamente cualquier cambio de tasa en Supabase
+  // Función para guardar directamente en Supabase con UPSERT
   const guardarTasaEnSupabase = async (nuevoValor) => {
+    const valorNumerico = parseFloat(nuevoValor);
+    if (isNaN(valorNumerico) || valorNumerico <= 0) return;
+
     try {
       await supabase
         .from('tasa_bcv')
-        .update({ valor: nuevoValor })
-        .eq('id', 1);
+        .upsert([{ id: 1, valor: valorNumerico }]);
     } catch (e) {
       console.error("Error al guardar la tasa en la nube:", e);
     }
-  };
-
-  const [cargandoBcvManual, setCargandoBcvManual] = useState(false);
-
-  const actualizarTasaBcvManual = async () => {
-    setCargandoBcvManual(true);
-    let nuevaTasa = null;
-
-    const apisBCV = [
-      "https://pydolarvenezuelaapi.vercel.app/api/v1/dollar/unit/bcv",
-      "https://ve.dolarapi.com/v1/dolares/bcv",
-      "https://open.er-api.com/v6/latest/USD"
-    ];
-
-    for (const url of apisBCV) {
-      try {
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.price) {
-            nuevaTasa = parseFloat(data.price);
-            break;
-          } else if (data.promedio) {
-            nuevaTasa = parseFloat(data.promedio);
-            break;
-          } else if (data.rates && data.rates.VES) {
-            nuevaTasa = parseFloat(data.rates.VES);
-            break;
-          }
-        }
-      } catch (e) {
-        console.log(`Fallo al intentar consultar BCV en: ${url}`);
-      }
-    }
-
-    if (nuevaTasa && nuevaTasa > 0) {
-      setTasaBcv(nuevaTasa);
-      await guardarTasaEnSupabase(nuevaTasa);
-      alert(`✅ ¡Tasa BCV extraída y guardada con éxito!\nValor oficial: Bs. ${nuevaTasa.toFixed(2)}`);
-    } else {
-      alert("⚠️ No se pudo obtener la tasa en tiempo real. Verifique su conexión o introduzca la tasa manualmente.");
-    }
-    setCargandoBcvManual(false);
   };
 
   const [listaAdmins, setListaAdmins] = useState([]);
@@ -221,8 +180,6 @@ export default function App() {
 
       {modo === 'sucursal' && (
         <VistaSucursal 
-          actualizarTasaBcvManual={actualizarTasaBcvManual}
-          cargandoBcvManual={cargandoBcvManual}
           onVolverAlMenu={() => setModo('menu')}
           productosCatalogo={productosCatalogo}
           listaRequisiciones={listaRequisiciones}
@@ -238,8 +195,6 @@ export default function App() {
 
       {modo === 'admin' && (
         <PanelAdmin 
-          actualizarTasaBcvManual={actualizarTasaBcvManual}
-          cargandoBcvManual={cargandoBcvManual}
           usuarioActual={usuarioActual}
           onVolverAlMenu={() => setModo('menu')}
           listaRequisiciones={listaRequisiciones}
@@ -267,7 +222,7 @@ export default function App() {
   );
 }
 
-function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, dispararAlertaSonora, setNuevaAlertaAdmin, cargarRequisicionesDeSupabase, actualizarTasaBcvManual, cargandoBcvManual }) {
+function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, dispararAlertaSonora, setNuevaAlertaAdmin, cargarRequisicionesDeSupabase }) {
   const [requisicion, setRequisicion] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('TODOS');
@@ -313,7 +268,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
   const totalItems = Object.values(requisicion).reduce((acc, item) => acc + item.cantidad, 0);
   const totalUSD = Object.values(requisicion).reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-  const totalBS = totalUSD * tasaBcv;
+  const totalBS = totalUSD * (parseFloat(tasaBcv) || 1);
 
   const enviarRequisicionAPlanta = async () => {
     if (Object.keys(requisicion).length === 0) {
@@ -374,16 +329,9 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                 setTasaBcv(nuevoVal);
                 guardarTasaEnSupabase(nuevoVal);
               }}
-              style={{ padding: '4px', fontSize: '13px', width: '85px', textAlign: 'center', borderRadius: '4px', border: '1px solid #4b5563', background: '#111827', color: '#fff', fontWeight: 'bold' }}
+              style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #4b5563', background: '#111827', color: '#fff', fontWeight: 'bold' }}
             />
           </div>
-          <button 
-            onClick={actualizarTasaBcvManual} 
-            disabled={cargandoBcvManual}
-            style={{ padding: '8px 14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-          >
-            {cargandoBcvManual ? "Consultando..." : "🔄 Extraer Tasa BCV"}
-          </button>
           <button onClick={onVolverAlMenu} style={{ backgroundColor: '#374151', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
@@ -475,7 +423,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, actualizarTasaBcvManual, cargandoBcvManual }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -754,17 +702,9 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 setTasaBcv(val);
                 guardarTasaEnSupabase(val);
               }} 
-              style={{ width: '85px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #4b5563', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
+              style={{ width: '90px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #4b5563', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
             />
           </div>
-
-          <button 
-            onClick={actualizarTasaBcvManual} 
-            disabled={cargandoBcvManual}
-            style={{ padding: '8px 14px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            {cargandoBcvManual ? "Consultando..." : "🔄 Extraer Tasa BCV"}
-          </button>
 
           <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
