@@ -42,7 +42,6 @@ const reproducirAlertaSonora = () => {
       }, delay);
     };
 
-    // Alarma potente de 4 tonos
     reproducirBeep(880, 0.2, 0);
     reproducirBeep(1100, 0.2, 250);
     reproducirBeep(880, 0.2, 500);
@@ -106,10 +105,9 @@ export default function App() {
     if (error) {
       console.error('Error al cargar requisiciones:', error);
     } else if (data) {
-      // Si la cantidad de requisiciones aumentó o es un evento en vivo
       if (esEventoRealtime || (conteoRef.current > 0 && data.length > conteoRef.current)) {
         setNuevaAlertaAdmin(true);
-        reproducirAlertaSonora(); // 🔊 Suena SIEMPRE (Menú o Admin)
+        reproducirAlertaSonora();
       }
       conteoRef.current = data.length;
 
@@ -123,9 +121,8 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // 1. Canal Realtime Instantáneo
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v2')
+      .channel('canal-alertas-global-v3')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -135,7 +132,6 @@ export default function App() {
       )
       .subscribe();
 
-    // 2. Respaldo por consulta cada 2 segundos
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase(false);
     }, 2000);
@@ -146,7 +142,7 @@ export default function App() {
     };
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE Y ACTUALIZACIÓN AUTOMÁTICA ---
+  // --- TASA BCV ---
   const [tasaBcv, setTasaBcv] = useState(() => {
     const guardada = localStorage.getItem('falcon_tasa_bcv');
     return guardada ? parseFloat(guardada) : 30.50;
@@ -251,14 +247,13 @@ export default function App() {
   };
 
   return (
-    <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-
+    <div className="fondo-panaderia-corcho">
       {modo === 'menu' && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', zIndex: 2, position: 'relative' }}>
+          <div className="tarjeta-corcho">
             <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b', marginBottom: '20px' }} />
             <h1 style={{ color: '#f59e0b', fontSize: '24px', margin: '0 0 5px 0' }}>FALCON CREST</h1>
-            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
+            <p style={{ color: '#d1d5db', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button 
@@ -268,13 +263,13 @@ export default function App() {
                 🏪 Ingresar Sucursal (Cafetín Sambil)
               </button>
 
-              <div style={{ borderTop: '1px solid #374151', margin: '10px 0', paddingTop: '20px' }}>
-                <h3 style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '10px' }}>🔑 Acceso Administrativo (Planta)</h3>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', margin: '10px 0', paddingTop: '20px' }}>
+                <h3 style={{ fontSize: '14px', color: '#f3f4f6', marginBottom: '10px' }}>🔑 Acceso Administrativo (Planta)</h3>
                 <form onSubmit={ingresarComoAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <select 
                     value={usuarioActual} 
                     onChange={e => setUsuarioActual(e.target.value)}
-                    style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
+                    style={{ backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
                   >
                     {listaAdmins.length > 0 ? (
                       listaAdmins.map(a => (
@@ -289,7 +284,7 @@ export default function App() {
                     placeholder="Contraseña de Administrador" 
                     value={claveAdminInput}
                     onChange={e => setClaveAdminInput(e.target.value)}
-                    style={{ backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
+                    style={{ backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
                   />
                   <button 
                     type="submit" 
@@ -305,47 +300,97 @@ export default function App() {
       )}
 
       {modo === 'sucursal' && (
-        <VistaSucursal 
-          onVolverAlMenu={() => setModo('menu')}
-          productosCatalogo={productosCatalogo}
-          listaRequisiciones={listaRequisiciones}
-          setListaRequisiciones={setListaRequisiciones}
-          tasaBcv={tasaBcv}
-          setTasaBcv={setTasaBcv}
-          guardarTasaEnSupabase={guardarTasaEnSupabase}
-          obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
-          cargandoTasa={cargandoTasa}
-          cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-        />
+        <div style={{ zIndex: 2, position: 'relative' }}>
+          <VistaSucursal 
+            onVolverAlMenu={() => setModo('menu')}
+            productosCatalogo={productosCatalogo}
+            listaRequisiciones={listaRequisiciones}
+            setListaRequisiciones={setListaRequisiciones}
+            tasaBcv={tasaBcv}
+            setTasaBcv={setTasaBcv}
+            guardarTasaEnSupabase={guardarTasaEnSupabase}
+            obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
+            cargandoTasa={cargandoTasa}
+            cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
+          />
+        </div>
       )}
 
       {modo === 'admin' && (
-        <PanelAdmin 
-          usuarioActual={usuarioActual}
-          onVolverAlMenu={() => setModo('menu')}
-          listaRequisiciones={listaRequisiciones}
-          setListaRequisiciones={setListaRequisiciones}
-          listaAdmins={listaAdmins}
-          setListaAdmins={setListaAdmins}
-          nuevaAlertaAdmin={nuevaAlertaAdmin}
-          setNuevaAlertaAdmin={setNuevaAlertaAdmin}
-          productosCatalogo={productosCatalogo}
-          cargarProductosDeSupabase={cargarProductosDeSupabase}
-          tasaBcv={tasaBcv}
-          setTasaBcv={setTasaBcv}
-          guardarTasaEnSupabase={guardarTasaEnSupabase}
-          obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
-          cargandoTasa={cargandoTasa}
-          cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-        />
+        <div style={{ zIndex: 2, position: 'relative' }}>
+          <PanelAdmin 
+            usuarioActual={usuarioActual}
+            onVolverAlMenu={() => setModo('menu')}
+            listaRequisiciones={listaRequisiciones}
+            setListaRequisiciones={setListaRequisiciones}
+            listaAdmins={listaAdmins}
+            setListaAdmins={setListaAdmins}
+            nuevaAlertaAdmin={nuevaAlertaAdmin}
+            setNuevaAlertaAdmin={setNuevaAlertaAdmin}
+            productosCatalogo={productosCatalogo}
+            cargarProductosDeSupabase={cargarProductosDeSupabase}
+            tasaBcv={tasaBcv}
+            setTasaBcv={setTasaBcv}
+            guardarTasaEnSupabase={guardarTasaEnSupabase}
+            obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
+            cargandoTasa={cargandoTasa}
+            cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
+          />
+        </div>
       )}
 
-      {/* BANNER VISIBLE EN MENÚ PRINCIPAL Y EN PANEL ADMIN (NUNCA EN SUCURSAL) */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
         modo={modo}
       />
+
+      {/* ESTILOS CSS PARA EL FONDO CORCHO Y SILUETAS DE PANADERÍA */}
+      <style>{`
+        .fondo-panaderia-corcho {
+          background-color: #2b1810;
+          background-image: 
+            radial-gradient(circle at 20% 30%, rgba(139, 69, 19, 0.25) 0%, transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(92, 51, 23, 0.3) 0%, transparent 40%),
+            repeating-linear-gradient(45deg, rgba(74, 40, 26, 0.1) 0, rgba(74, 40, 26, 0.1) 2px, transparent 0, transparent 50px);
+          min-height: 100vh;
+          color: #f3f4f6;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          position: relative;
+          overflow-x: hidden;
+        }
+
+        /* Siluetas de panadería de fondo flotantes y elegantes */
+        .fondo-panaderia-corcho::before {
+          content: "🥖 🥐 ☕ 🍞 🥨 🌾 🍩 ☕ 🥖 🥐 🍞 🌾 🥨 ☕ 🥐 🥖";
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          font-size: 85px;
+          line-height: 1.8;
+          word-spacing: 120px;
+          letter-spacing: 60px;
+          opacity: 0.035;
+          pointer-events: none;
+          z-index: 1;
+          transform: rotate(-10deg);
+          user-select: none;
+        }
+
+        .tarjeta-corcho {
+          background-color: rgba(33, 19, 13, 0.92);
+          border: 1px solid rgba(180, 100, 50, 0.3);
+          border-radius: 16px;
+          padding: 40px;
+          width: 100%;
+          max-width: 450px;
+          text-align: center;
+          box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+          backdrop-filter: blur(5px);
+        }
+      `}</style>
     </div>
   );
 }
@@ -443,18 +488,18 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   });
 
   return (
-    <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111827', padding: '15px 25px', borderRadius: '12px', border: '1px solid #1f2937', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+    <div style={{ minHeight: '100vh', padding: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '15px 25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', marginBottom: '20px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '45px', height: '45px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #f59e0b' }} />
           <div>
             <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: '#f59e0b', margin: 0 }}>FALCON CREST</h1>
-            <span style={{ fontSize: '12px', color: '#9ca3af' }}>Sucursal Sambil Punto Fijo | Usuario: <strong style={{ color: '#34d399' }}>Sucursal Única</strong></span>
+            <span style={{ fontSize: '12px', color: '#d1d5db' }}>Sucursal Sambil Punto Fijo | Usuario: <strong style={{ color: '#34d399' }}>Sucursal Única</strong></span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#21130d', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
               type="number"
@@ -465,7 +510,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                 setTasaBcv(nuevoVal);
                 guardarTasaEnSupabase(nuevoVal);
               }}
-              style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #4b5563', background: '#111827', color: '#fff', fontWeight: 'bold' }}
+              style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #7c4a32', background: '#110905', color: '#fff', fontWeight: 'bold' }}
             />
             <button 
               onClick={obtenerTasaBcvAutomatica} 
@@ -477,7 +522,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             </button>
           </div>
 
-          <button onClick={onVolverAlMenu} style={{ backgroundColor: '#374151', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
+          <button onClick={onVolverAlMenu} style={{ backgroundColor: '#4a2c1d', color: '#fff', border: '1px solid #7c4a32', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
 
@@ -495,7 +540,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               placeholder="🔍 Buscar artículo..." 
               value={busqueda} 
               onChange={(e) => setBusqueda(e.target.value)} 
-              style={{ width: '100%', backgroundColor: '#111827', border: '1px solid #374151', padding: '12px', borderRadius: '8px', color: '#fff', outline: 'none' }} 
+              style={{ width: '100%', backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', padding: '12px', borderRadius: '8px', color: '#fff', outline: 'none' }} 
             />
           </div>
           
@@ -504,7 +549,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               <button 
                 key={cat} 
                 onClick={() => setCategoriaSeleccionada(cat)} 
-                style={{ padding: '8px 16px', backgroundColor: categoriaSeleccionada === cat ? '#f59e0b' : '#111827', color: categoriaSeleccionada === cat ? '#000' : '#d1d5db', border: '1px solid', borderColor: categoriaSeleccionada === cat ? '#f59e0b' : '#374151', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                style={{ padding: '8px 16px', backgroundColor: categoriaSeleccionada === cat ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: categoriaSeleccionada === cat ? '#000' : '#d1d5db', border: '1px solid', borderColor: categoriaSeleccionada === cat ? '#f59e0b' : 'rgba(180, 100, 50, 0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
               >
                 {cat}
               </button>
@@ -513,17 +558,17 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '15px', maxHeight: '58vh', overflowY: 'auto' }}>
             {productosFiltrados.length === 0 ? (
-              <p style={{ color: '#9ca3af', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para importar tu carga masiva.</p>
+              <p style={{ color: '#d1d5db', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para importar tu carga masiva.</p>
             ) : (
               productosFiltrados.map(prod => (
-                <div key={prod.id} style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div key={prod.id} style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                   <div>
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#9ca3af', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 'bold' }}>
                       {prod.categoria}
                     </span>
                     <h4 style={{ fontSize: '14px', margin: '8px 0', color: '#fff' }}>{prod.nombre}</h4>
                     <p style={{ fontSize: '14px', color: '#34d399', margin: '0 0 14px 0', fontWeight: 'bold' }}>
-                      ${(parseFloat(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#9ca3af' }}>/ {prod.unidad}</span>
+                      ${(parseFloat(prod.precio) || 0).toFixed(2)} <span style={{ fontSize: '11px', color: '#d1d5db' }}>/ {prod.unidad}</span>
                     </p>
                   </div>
                   <button onClick={() => agregarAlCarrito(prod)} style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '9px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -535,19 +580,19 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '12px', padding: '20px', height: 'fit-content' }}>
-          <h3 style={{ fontSize: '16px', borderBottom: '1px solid #374151', paddingBottom: '10px', marginBottom: '12px', color: '#f59e0b' }}>
+        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '12px', padding: '20px', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
+          <h3 style={{ fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '12px', color: '#f59e0b' }}>
             🛒 Requisición Actual ({totalItems})
           </h3>
 
-          <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid #1f2937', paddingTop: '8px' }}>
+          <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
             {Object.keys(requisicion).length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#6b7280', textAlign: 'center', margin: '15px 0' }}>No hay artículos seleccionados</p>
+              <p style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', margin: '15px 0' }}>No hay artículos seleccionados</p>
             ) : (
               Object.values(requisicion).map(item => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '12px' }}>
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
-                  <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px' }} />
+                  <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', borderRadius: '4px', padding: '2px' }} />
                   <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>
                     ${((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0)).toFixed(2)}
                   </span>
@@ -556,7 +601,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid #374151', paddingTop: '10px', marginBottom: '12px' }}>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${totalUSD.toFixed(2)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. {totalBS.toFixed(2)}</span></div>
           </div>
@@ -827,19 +872,19 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
   const productosAdminFiltrados = productosCatalogo.filter(p => p.nombre && p.nombre.toLowerCase().includes(busqAdmin.toLowerCase()));
 
   return (
-    <div style={{ backgroundColor: '#0b0f19', color: '#fff', minHeight: '100vh', padding: '30px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111827', padding: '15px 25px', borderRadius: '12px', border: '1px solid #1f2937', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+    <div style={{ minHeight: '100vh', padding: '30px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '15px 25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', marginBottom: '25px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '45px', height: '45px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #f59e0b' }} />
           <div>
             <h2 style={{ color: '#f59e0b', fontSize: '20px', margin: 0 }}>FALCON CREST - Panel Planta y Control</h2>
-            <span style={{ fontSize: '13px', color: '#9ca3af' }}>Sesión Admin: <strong style={{ color: '#34d399' }}>{usuarioActual}</strong></span>
+            <span style={{ fontSize: '13px', color: '#d1d5db' }}>Sesión Admin: <strong style={{ color: '#34d399' }}>{usuarioActual}</strong></span>
           </div>
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ backgroundColor: '#21130d', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
               type="number" 
@@ -850,7 +895,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 setTasaBcv(val);
                 guardarTasaEnSupabase(val);
               }} 
-              style={{ width: '90px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #4b5563', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
+              style={{ width: '90px', backgroundColor: '#110905', color: '#34d399', border: '1px solid #7c4a32', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
             />
             <button 
               onClick={obtenerTasaBcvAutomatica} 
@@ -862,7 +907,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
             </button>
           </div>
 
-          <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
+          <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#4a2c1d', color: '#fff', border: '1px solid #7c4a32', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
 
@@ -874,20 +919,20 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
       {/* BOTONES DE PESTAÑAS */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => cambiarPestana('requisiciones')} style={{ padding: '10px 20px', backgroundColor: pestana === 'requisiciones' ? '#f59e0b' : '#111827', color: pestana === 'requisiciones' ? '#000' : '#fff', border: '1px solid #374151', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', position: 'relative' }}>
+        <button onClick={() => cambiarPestana('requisiciones')} style={{ padding: '10px 20px', backgroundColor: pestana === 'requisiciones' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'requisiciones' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', position: 'relative' }}>
           📦 Requisiciones y Notas ({listaRequisiciones.length})
           {nuevaAlertaAdmin && <span style={{ position: 'absolute', top: '-5px', right: '-5px', width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid #111827' }}></span>}
         </button>
 
-        <button onClick={() => cambiarPestana('precios')} style={{ padding: '10px 20px', backgroundColor: pestana === 'precios' ? '#f59e0b' : '#111827', color: pestana === 'precios' ? '#000' : '#fff', border: '1px solid #374151', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+        <button onClick={() => cambiarPestana('precios')} style={{ padding: '10px 20px', backgroundColor: pestana === 'precios' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'precios' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
           💰 Modificar Precios / Artículos ({productosCatalogo.length})
         </button>
 
-        <button onClick={() => cambiarPestana('crear_producto')} style={{ padding: '10px 20px', backgroundColor: pestana === 'crear_producto' ? '#f59e0b' : '#111827', color: pestana === 'crear_producto' ? '#000' : '#fff', border: '1px solid #374151', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+        <button onClick={() => cambiarPestana('crear_producto')} style={{ padding: '10px 20px', backgroundColor: pestana === 'crear_producto' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'crear_producto' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
           ➕ Carga Masiva y Nuevo Artículo
         </button>
 
-        <button onClick={() => cambiarPestana('seguridad')} style={{ padding: '10px 20px', backgroundColor: pestana === 'seguridad' ? '#f59e0b' : '#111827', color: pestana === 'seguridad' ? '#000' : '#fff', border: '1px solid #374151', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+        <button onClick={() => cambiarPestana('seguridad')} style={{ padding: '10px 20px', backgroundColor: pestana === 'seguridad' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'seguridad' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
           🔐 Claves Admin
         </button>
         
@@ -899,17 +944,17 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       {/* CONTENIDO DE REQUISICIONES */}
       {pestana === 'requisiciones' && (
         <div style={{ display: 'grid', gridTemplateColumns: ordenSeleccionada ? '1fr 400px' : '1fr', gap: '20px' }}>
-          <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '12px', border: '1px solid #1f2937' }}>
+          <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
             <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Control de Órdenes y Salida de Insumos</h3>
             {listaRequisiciones.length === 0 ? (
-              <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed #374151', borderRadius: '8px', color: '#6b7280' }}>
+              <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed #5c3a2a', borderRadius: '8px', color: '#9ca3af' }}>
                 No hay requisiciones registradas por la sucursal todavía.
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af' }}>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#d1d5db' }}>
                       <th style={{ padding: '10px' }}>ID Orden</th>
                       <th style={{ padding: '10px' }}>Fecha</th>
                       <th style={{ padding: '10px' }}>Prioridad</th>
@@ -920,18 +965,18 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                   </thead>
                   <tbody>
                     {listaRequisiciones.map(ord => (
-                      <tr key={ord.id} style={{ borderBottom: '1px solid #1f2937', backgroundColor: ordenSeleccionada?.id === ord.id ? '#1f2937' : 'transparent' }}>
+                      <tr key={ord.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: ordenSeleccionada?.id === ord.id ? '#2e1911' : 'transparent' }}>
                         <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{ord.id}</td>
-                        <td style={{ padding: '10px', color: '#9ca3af', fontSize: '12px' }}>{ord.fecha}</td>
+                        <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{ord.fecha}</td>
                         <td style={{ padding: '10px' }}>
-                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: ord.prioridad?.includes('Urgente') ? '#7f1d1d' : '#374151', color: '#fff' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: ord.prioridad?.includes('Urgente') ? '#7f1d1d' : '#4a2c1d', color: '#fff' }}>
                             {ord.prioridad}
                           </span>
                         </td>
                         <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(ord.totalUSD) || 0).toFixed(2)}</td>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>{ord.estatus}</td>
                         <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
-                          <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#374151', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ver</button>
+                          <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#4a2c1d', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ver</button>
                           <button onClick={() => imprimirOrden(ord)} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🖨️</button>
                           <button onClick={() => eliminarOrden(ord)} style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🗑️</button>
                         </td>
@@ -944,21 +989,21 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           </div>
 
           {ordenSeleccionada && (
-            <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '12px', border: '1px solid #374151', height: 'fit-content' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #374151', paddingBottom: '10px', marginBottom: '15px' }}>
+            <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '15px' }}>
                 <h4 style={{ color: '#f59e0b', margin: 0 }}>Detalle: {ordenSeleccionada.id}</h4>
-                <button onClick={() => setOrdenSeleccionada(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
+                <button onClick={() => setOrdenSeleccionada(null)} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
               </div>
-              <p style={{ fontSize: '12px', color: '#9ca3af', margin: '5px 0' }}><strong>Sucursal:</strong> {ordenSeleccionada.sucursal}</p>
-              <p style={{ fontSize: '12px', color: '#9ca3af', margin: '5px 0' }}><strong>Fecha:</strong> {ordenSeleccionada.fecha}</p>
-              <p style={{ fontSize: '12px', color: '#9ca3af', margin: '5px 0' }}><strong>Observaciones:</strong> {ordenSeleccionada.observaciones || 'Ninguna'}</p>
+              <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Sucursal:</strong> {ordenSeleccionada.sucursal}</p>
+              <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Fecha:</strong> {ordenSeleccionada.fecha}</p>
+              <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Observaciones:</strong> {ordenSeleccionada.observaciones || 'Ninguna'}</p>
               
               <div style={{ margin: '15px 0' }}>
                 <label style={{ fontSize: '12px', color: '#f59e0b', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>ACTUALIZAR ESTATUS</label>
                 <select 
                   value={ordenSeleccionada.estatus} 
                   onChange={(e) => cambiarEstatusOrden(ordenSeleccionada, e.target.value)}
-                  style={{ width: '100%', backgroundColor: '#1f2937', color: '#fff', border: '1px solid #4b5563', padding: '8px', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
+                  style={{ width: '100%', backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '8px', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
                 >
                   <option value="Pendiente ⏳">Pendiente ⏳</option>
                   <option value="En Proceso 🔄">En Proceso 🔄</option>
@@ -967,7 +1012,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 </select>
               </div>
 
-              <div style={{ maxHeight: '180px', overflowY: 'auto', borderTop: '1px solid #1f2937', paddingTop: '10px', marginBottom: '15px' }}>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '15px' }}>
                 {ordenSeleccionada.items && ordenSeleccionada.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
                     <span>{it.cantidad} {it.unidad} - {it.nombre}</span>
@@ -976,7 +1021,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 ))}
               </div>
 
-              <div style={{ borderTop: '1px solid #374151', paddingTop: '10px', marginBottom: '15px' }}>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(parseFloat(ordenSeleccionada.totalUSD) || 0).toFixed(2)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. ${(parseFloat(ordenSeleccionada.totalBS) || 0).toFixed(2)}</span></div>
               </div>
@@ -990,15 +1035,15 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       )}
 
       {pestana === 'precios' && (
-        <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '12px', border: '1px solid #1f2937' }}>
+        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Gestión y Edición Completa de Artículos / Precios</h3>
           <div style={{ marginBottom: '15px' }}>
-            <input type="text" placeholder="🔍 Buscar producto por nombre para editar..." value={busqAdmin} onChange={(e) => setBusqAdmin(e.target.value)} style={{ width: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', borderRadius: '8px', color: '#fff', outline: 'none' }} />
+            <input type="text" placeholder="🔍 Buscar producto por nombre para editar..." value={busqAdmin} onChange={(e) => setBusqAdmin(e.target.value)} style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff', outline: 'none' }} />
           </div>
           <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #374151', color: '#9ca3af' }}>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#d1d5db' }}>
                   <th style={{ padding: '10px' }}>Artículo</th>
                   <th style={{ padding: '10px' }}>Categoría</th>
                   <th style={{ padding: '10px' }}>Unidad</th>
@@ -1017,24 +1062,24 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                   productosAdminFiltrados.map(p => {
                     const esEditando = productoEditandoId === p.id;
                     return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #1f2937', backgroundColor: esEditando ? '#1f2937' : 'transparent' }}>
+                      <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: esEditando ? '#2e1911' : 'transparent' }}>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>
                           {esEditando ? (
                             <input 
                               type="text" 
                               value={datosEdicion.nombre} 
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, nombre: e.target.value })}
-                              style={{ width: '100%', backgroundColor: '#111827', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
+                              style={{ width: '100%', backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
                             />
                           ) : p.nombre}
                         </td>
 
-                        <td style={{ padding: '10px', color: '#9ca3af' }}>
+                        <td style={{ padding: '10px', color: '#d1d5db' }}>
                           {esEditando ? (
                             <select 
                               value={datosEdicion.categoria}
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, categoria: e.target.value })}
-                              style={{ backgroundColor: '#111827', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
+                              style={{ backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
                             >
                               {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
@@ -1046,7 +1091,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                             <select 
                               value={datosEdicion.unidad}
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, unidad: e.target.value })}
-                              style={{ backgroundColor: '#111827', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
+                              style={{ backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
                             >
                               {unidadesDisponibles.map(u => <option key={u} value={u}>{u}</option>)}
                             </select>
@@ -1060,7 +1105,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                               step="0.01" 
                               value={datosEdicion.precio}
                               onChange={(e) => setDatosEdicion({ ...datosEdicion, precio: e.target.value })}
-                              style={{ width: '80px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }}
+                              style={{ width: '80px', backgroundColor: '#110905', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }}
                             />
                           ) : `$${(parseFloat(p.precio) || 0).toFixed(2)}`}
                         </td>
@@ -1069,7 +1114,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                           {esEditando ? (
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button onClick={() => guardarEdicionProducto(p.id)} style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar</button>
-                              <button onClick={() => setProductoEditandoId(null)} style={{ backgroundColor: '#4b5563', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+                              <button onClick={() => setProductoEditandoId(null)} style={{ backgroundColor: '#4a2c1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', gap: '6px' }}>
@@ -1089,14 +1134,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       )}
 
       {pestana === 'crear_producto' && (
-        <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '600px' }}>
+        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', maxWidth: '600px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
           <h3 style={{ color: '#38bdf8', margin: '0 0 10px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
-          <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '15px' }}>
+          <p style={{ fontSize: '12px', color: '#d1d5db', marginBottom: '15px' }}>
             Selecciona tu archivo <strong>.csv</strong> generado con la lista de precios:<br/>
             <code>Nombre, Precio, Categoría, Unidad</code>
           </p>
 
-          <div style={{ border: '2px dashed #007bff', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#111827', marginBottom: '15px' }}>
+          <div style={{ border: '2px dashed #7c4a32', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#110905', marginBottom: '15px' }}>
             <input 
               type="file" 
               accept=".csv, .txt" 
@@ -1112,13 +1157,13 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       )}
 
       {pestana === 'seguridad' && (
-        <div style={{ backgroundColor: '#111827', padding: '25px', borderRadius: '12px', border: '1px solid #1f2937', maxWidth: '500px' }}>
+        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', maxWidth: '500px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>🔐 Cambio de Claves de Administradores</h3>
           {msgClave && <div style={{ backgroundColor: '#059669', color: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontWeight: 'bold' }}>{msgClave}</div>}
           <form onSubmit={handleActualizarClave}>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>SELECCIONAR ADMINISTRADOR</label>
-              <select value={userSeleccionado} onChange={(e) => setUserSeleccionado(e.target.value)} style={{ width: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', borderRadius: '8px', color: '#fff' }}>
+              <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>SELECCIONAR ADMINISTRADOR</label>
+              <select value={userSeleccionado} onChange={(e) => setUserSeleccionado(e.target.value)} style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }}>
                 {listaAdmins.length > 0 ? (
                   listaAdmins.map(a => (
                     <option key={a.usuario} value={a.usuario}>{a.usuario}</option>
@@ -1129,8 +1174,8 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>NUEVA CONTRASEÑA</label>
-              <input type="password" value={nuevaClave} onChange={(e) => setNuevaClave(e.target.value)} placeholder="Escribe la nueva contraseña..." style={{ width: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', borderRadius: '8px', color: '#fff' }} />
+              <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>NUEVA CONTRASEÑA</label>
+              <input type="password" value={nuevaClave} onChange={(e) => setNuevaClave(e.target.value)} placeholder="Escribe la nueva contraseña..." style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }} />
             </div>
             <button type="submit" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
               Actualizar Contraseña
@@ -1154,7 +1199,6 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
 };
 
 function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, modo }) {
-  // Se muestra si hay alerta Y el usuario está en 'admin' o 'menu' (nunca en 'sucursal')
   if (!nuevaAlertaAdmin || modo === 'sucursal') return null;
 
   return (
