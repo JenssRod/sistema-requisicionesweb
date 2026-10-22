@@ -11,7 +11,7 @@ export default function App() {
 
   const audioRef = useRef(null);
 
-  // MANTIENE EL CANAL DE AUDIO ABIERTO AUTOMÁTICAMENTE
+  // MANTIENE EL CANAL DE AUDIO ABIERTO AUTOMÁTICAMENTE EN SEGUNDO PLANO
   useEffect(() => {
     const intentarReproducir = async () => {
       try {
@@ -102,7 +102,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-original')
+      .channel('canal-alertas-oficina-bcv-auto')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -124,11 +124,12 @@ export default function App() {
     };
   }, []);
 
-  // --- TASA BCV DESDE SUPABASE ---
+  // --- TASA BCV DESDE SUPABASE Y ACTUALIZACIÓN AUTOMÁTICA ---
   const [tasaBcv, setTasaBcv] = useState(() => {
     const guardada = localStorage.getItem('falcon_tasa_bcv');
     return guardada ? parseFloat(guardada) : 30.50;
   });
+  const [cargandoTasa, setCargandoTasa] = useState(false);
 
   const cargarTasaDeSupabase = async () => {
     try {
@@ -173,6 +174,28 @@ export default function App() {
       }
     } catch (e) {
       console.error("Error al guardar la tasa en la nube:", e);
+    }
+  };
+
+  // BOTÓN AUTOMÁTICO DE OBTENER TASA BCV
+  const obtenerTasaBcvAutomatica = async () => {
+    setCargandoTasa(true);
+    try {
+      const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      const data = await res.json();
+      if (data && data.promedio) {
+        const valorOficial = parseFloat(data.promedio);
+        setTasaBcv(valorOficial);
+        await guardarTasaEnSupabase(valorOficial);
+        alert(`✅ Tasa BCV actualizada automáticamente: ${valorOficial} Bs.`);
+      } else {
+        alert("⚠️ No se pudo obtener la tasa automática. Puedes ingresarla manualmente.");
+      }
+    } catch (err) {
+      console.error("Error consultando la API del BCV:", err);
+      alert("❌ Error de conexión al consultar la tasa automática.");
+    } finally {
+      setCargandoTasa(false);
     }
   };
 
@@ -276,6 +299,8 @@ export default function App() {
           tasaBcv={tasaBcv}
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
+          obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
+          cargandoTasa={cargandoTasa}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
         />
       )}
@@ -295,6 +320,8 @@ export default function App() {
           tasaBcv={tasaBcv}
           setTasaBcv={setTasaBcv}
           guardarTasaEnSupabase={guardarTasaEnSupabase}
+          obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
+          cargandoTasa={cargandoTasa}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
         />
       )}
@@ -309,7 +336,7 @@ export default function App() {
   );
 }
 
-function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
+function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisiciones, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase }) {
   const [requisicion, setRequisicion] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('TODOS');
@@ -412,7 +439,9 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
           </div>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399' }}>
+          
+          {/* CONTROL DE TASA BCV CON BOTÓN AUTOMÁTICO */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
               type="number"
@@ -425,7 +454,16 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               }}
               style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #4b5563', background: '#111827', color: '#fff', fontWeight: 'bold' }}
             />
+            <button 
+              onClick={obtenerTasaBcvAutomatica} 
+              disabled={cargandoTasa}
+              title="Obtener Tasa Oficial BCV Automática"
+              style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '5px 9px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}
+            >
+              {cargandoTasa ? '⌛' : '🔄 Auto'}
+            </button>
           </div>
+
           <button onClick={onVolverAlMenu} style={{ backgroundColor: '#374151', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
@@ -519,7 +557,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, cargarRequisicionesDeSupabase }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -787,6 +825,8 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          
+          {/* CONTROL DE TASA BCV CON BOTÓN AUTOMÁTICO EN PANEL ADMIN */}
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
@@ -800,6 +840,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               }} 
               style={{ width: '90px', backgroundColor: '#111827', color: '#34d399', border: '1px solid #4b5563', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
             />
+            <button 
+              onClick={obtenerTasaBcvAutomatica} 
+              disabled={cargandoTasa}
+              title="Obtener Tasa Oficial BCV Automática"
+              style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '5px 9px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}
+            >
+              {cargandoTasa ? '⌛' : '🔄 Auto'}
+            </button>
           </div>
 
           <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#374151', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
