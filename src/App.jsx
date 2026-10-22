@@ -29,7 +29,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME + POLLING AUTOMÁTICO DE RESPALDO ---
+  // --- REQUISICIONES REALTIME Y POLLING AUTOMÁTICO DE RESPALDO ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
   const [conteoAnterior, setConteoAnterior] = useState(0);
 
@@ -42,7 +42,7 @@ export default function App() {
       console.error('Error al cargar requisiciones:', error);
     } else if (data) {
       if (conteoAnterior > 0 && data.length > conteoAnterior) {
-        setNuevaAlertaAdmin(true); // Activa el banner rojo si hay una orden nueva
+        setNuevaAlertaAdmin(true); // Activa la alerta
       }
       setConteoAnterior(data.length);
 
@@ -56,7 +56,7 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // 1. Canal Realtime instantáneo (gracias a que ya lo activaste en Supabase)
+    // 1. Canal Realtime instantáneo
     const canalRequisiciones = supabase
       .channel('canal-alertas-definitivo')
       .on(
@@ -69,7 +69,7 @@ export default function App() {
       )
       .subscribe();
 
-    // 2. Respaldo de verificación cada 2 segundos (Infallible)
+    // 2. Respaldo de verificación cada 2 segundos
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
     }, 2000);
@@ -274,11 +274,11 @@ export default function App() {
         />
       )}
 
-      {/* BANNER ROJO GIGANTE INELUDIBLE */}
+      {/* BANNER MOSTRADO EN EL MENÚ PRINCIPAL Y EN EL PANEL ADMIN */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
-        setModo={setModo}
+        modo={modo}
       />
     </div>
   );
@@ -1087,21 +1087,20 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
   }
 };
 
-function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo }) {
-  if (!nuevaAlertaAdmin) return null;
+function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, modo }) {
+  // Se muestra si hay una alerta Y el usuario está en 'admin' o en el 'menu' principal
+  if (!nuevaAlertaAdmin || (modo !== 'admin' && modo !== 'menu')) return null;
+
   return (
     <div
-      onClick={() => {
-        setNuevaAlertaAdmin(false);
-        setModo('admin');
-      }}
+      onClick={() => setNuevaAlertaAdmin(false)}
       style={{
         position: 'fixed',
         top: '20px',
         right: '25px',
         backgroundColor: '#DC2626',
         color: '#fff',
-        padding: '24px 35px',
+        padding: '20px 30px',
         borderRadius: '16px',
         fontSize: '18px',
         fontWeight: 'bold',
@@ -1111,8 +1110,7 @@ function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo
         border: '4px solid #FEF08A'
       }}
     >
-      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! 🚨<br/>
-      <span style={{ fontSize: '14px', textDecoration: 'underline', color: '#FEF08A' }}>Haz clic aquí para ver la orden de inmediato</span>
+      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! 🚨
     </div>
   );
 }
