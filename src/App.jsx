@@ -29,14 +29,23 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL ---
+  // --- REQUISICIONES REALTIME + POLLING AUTOMÁTICO DE RESPALDO ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
+  const [conteoAnterior, setConteoAnterior] = useState(0);
 
   const cargarRequisicionesDeSupabase = async () => {
-    const { data, error } = await supabase.from('requisiciones').select('*');
+    const { data, error } = await supabase
+      .from('requisiciones')
+      .select('*');
+
     if (error) {
       console.error('Error al cargar requisiciones:', error);
     } else if (data) {
+      if (conteoAnterior > 0 && data.length > conteoAnterior) {
+        setNuevaAlertaAdmin(true); // Activa el banner rojo si hay una orden nueva
+      }
+      setConteoAnterior(data.length);
+
       setListaRequisiciones(data.map(item => ({
         ...item.datos,
         supabase_db_id: item.id
@@ -47,18 +56,20 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
+    // 1. Canal Realtime instantáneo (gracias a que ya lo activaste en Supabase)
     const canalRequisiciones = supabase
-      .channel('canal-alertas-visual-definitivo')
+      .channel('canal-alertas-definitivo')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
-          setNuevaAlertaAdmin(true); // Activa la alerta visual gigante
+          setNuevaAlertaAdmin(true);
         }
       )
       .subscribe();
 
+    // 2. Respaldo de verificación cada 2 segundos (Infallible)
     const intervalo = setInterval(() => {
       cargarRequisicionesDeSupabase();
     }, 2000);
@@ -67,7 +78,7 @@ export default function App() {
       supabase.removeChannel(canalRequisiciones);
       clearInterval(intervalo);
     };
-  }, []);
+  }, [conteoAnterior]);
 
   // --- TASA BCV DESDE SUPABASE Y ACTUALIZACIÓN AUTOMÁTICA ---
   const [tasaBcv, setTasaBcv] = useState(() => {
@@ -263,7 +274,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER ROJO GIGANTE FLOTANTE GLOBAL (INELUDIBLE) */}
+      {/* BANNER ROJO GIGANTE INELUDIBLE */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
@@ -1097,8 +1108,7 @@ function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo
         zIndex: 999999,
         cursor: 'pointer',
         boxShadow: '0 15px 35px rgba(220, 38, 38, 0.9)',
-        border: '4px solid #FEF08A',
-        animation: 'pulse 1s infinite'
+        border: '4px solid #FEF08A'
       }}
     >
       🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! 🚨<br/>
