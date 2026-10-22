@@ -8,33 +8,68 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
-  const [audioActivado, setAudioActivado] = useState(false);
 
-  const audioRef = useRef(null);
+  const audioCtxRef = useRef(null);
 
-  // MANTENER Y ACTIVAR AUDIO EN CHROME
-  const activarAudioNavegador = () => {
-    if (audioRef.current) {
-      audioRef.current.play().then(() => {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        setAudioActivado(true);
-        alert("🔊 ¡Alarma de audio activada correctamente en Chrome!");
-      }).catch(err => {
-        console.error("Error al activar audio:", err);
-      });
-    }
-  };
+  // INICIALIZA EL MOTOR DE AUDIO AUTOMÁTICAMENTE CON CUALQUIER CLIC/INTERACCIÓN EN LA PANTALLA
+  useEffect(() => {
+    const inicializarAudioAutomatico = () => {
+      if (!audioCtxRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          audioCtxRef.current = new AudioCtx();
+        }
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+    };
 
-  // DISPARADOR DE SIRENA
+    window.addEventListener('click', inicializarAudioAutomatico, { once: false });
+    window.addEventListener('keydown', inicializarAudioAutomatico, { once: false });
+    window.addEventListener('touchstart', inicializarAudioAutomatico, { once: false });
+
+    return () => {
+      window.removeEventListener('click', inicializarAudioAutomatico);
+      window.removeEventListener('keydown', inicializarAudioAutomatico);
+      window.removeEventListener('touchstart', inicializarAudioAutomatico);
+    };
+  }, []);
+
+  // DISPARADOR DE SIRENA DUAL AUTOMÁTICO (SUENA EN TODAS LAS PC Y SESIONES SIMULTÁNEAMENTE)
   const dispararAlertaSonora = () => {
-    // 1. Reproducir sonido MP3 mediante el elemento HTML Audio
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(e => console.log("Bloqueo de audio en Chrome:", e));
+    // 1. Sirena sintética por sintetizador de frecuencias Web Audio
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = audioCtxRef.current || new AudioCtx();
+      
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const hacerTono = (frecuencia, tiempoInicio, duracion) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
+        gain.gain.setValueAtTime(0.9, ctx.currentTime + tiempoInicio);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + tiempoInicio);
+        osc.stop(ctx.currentTime + tiempoInicio + duracion);
+      };
+
+      // Tono tipo alarma de fábrica / ambulancia (Repite 3 veces)
+      [0, 0.8, 1.6].forEach(delay => {
+        hacerTono(950, delay + 0, 0.3);
+        hacerTono(650, delay + 0.35, 0.3);
+      });
+    } catch (e) {
+      console.log("Error al reproducir audio Web:", e);
     }
 
-    // 2. Disparar síntesis de voz si está disponible
+    // 2. Anuncio de Voz Automático por Altavoz
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
@@ -64,7 +99,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL ---
+  // --- REQUISICIONES REALTIME Y MONITOREO SIMULTÁNEO EN TODAS LAS PANTALLAS ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -83,7 +118,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-sonido-directo')
+      .channel('canal-alertas-automatico-global')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -212,13 +247,6 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
 
-      {/* AUDIO HTML REAL DE ALARMA */}
-      <audio 
-        ref={audioRef} 
-        src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" 
-        preload="auto"
-      />
-
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
@@ -303,8 +331,6 @@ export default function App() {
           obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
           cargandoTasa={cargandoTasa}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-          activarAudioNavegador={activarAudioNavegador}
-          audioActivado={audioActivado}
         />
       )}
 
@@ -538,7 +564,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase, activarAudioNavegador, audioActivado }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -807,14 +833,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          {/* BOTÓN PARA ACTIVAR EL SONIDO EN CHROME */}
-          <button 
-            onClick={activarAudioNavegador}
-            style={{ backgroundColor: audioActivado ? '#059669' : '#dc2626', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-          >
-            {audioActivado ? '🔊 Alarma Activada' : '🔔 ACTIVAR SONIDO ALARMA'}
-          </button>
-
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
