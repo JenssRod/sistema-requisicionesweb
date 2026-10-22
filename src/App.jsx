@@ -119,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v6')
+      .channel('canal-alertas-global-v7')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -596,11 +596,19 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   // MÓDULO CXC (ESTADO)
   const [listaCxc, setListaCxc] = useState([]);
+  // Estados temporales para los selectores de CxC antes de guardar
+  const [estatusCxcTemporal, setEstatusCxcTemporal] = useState({});
 
   const cargarCxcDeSupabase = async () => {
     const { data, error } = await supabase.from('cxc').select('*').order('created_at', { ascending: false });
     if (!error && data) {
       setListaCxc(data);
+      // Inicializar estados temporales
+      const temps = {};
+      data.forEach(item => {
+        temps[item.id] = item.estatus_pago;
+      });
+      setEstatusCxcTemporal(temps);
     }
   };
 
@@ -610,6 +618,10 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   const registrarEnCxc = async (orden) => {
     try {
+      // Verificar si ya existe en cxc para esta orden
+      const { data: existe } = await supabase.from('cxc').select('*').eq('id_orden', orden.id);
+      if (existe && existe.length > 0) return;
+
       const nuevaDeuda = {
         id_orden: orden.id,
         sucursal: orden.sucursal || 'Cafetín Sambil',
@@ -619,26 +631,24 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         estatus_pago: 'Pendiente 💳'
       };
 
-      const { error } = await supabase.from('cxc').insert([nuevaDeuda]);
-      if (error) {
-        console.error("Error guardando en CxC:", error);
-        alert("⚠️ Recuerda crear la tabla 'cxc' en Supabase para que guarde las Cuentas por Cobrar.");
-      } else {
-        cargarCxcDeSupabase();
-        setAlertaAdminMsg("💳 ¡Orden registrada en Cuentas por Cobrar (CxC)!");
-        setTimeout(() => setAlertaAdminMsg(''), 4000);
-      }
+      await supabase.from('cxc').insert([nuevaDeuda]);
+      cargarCxcDeSupabase();
     } catch (e) {
-      console.error("Error:", e);
+      console.error("Error registrando CxC:", e);
     }
   };
 
-  const cambiarEstatusPagoCxc = async (idDb, nuevoEstatus) => {
+  const guardarEstatusPagoCxc = async (idDb) => {
+    const nuevoEstatus = estatusCxcTemporal[idDb];
+    if (!nuevoEstatus) return;
+
     const { error } = await supabase.from('cxc').update({ estatus_pago: nuevoEstatus }).eq('id', idDb);
-    if (!error) {
+    if (error) {
+      alert("❌ Error al guardar el estatus en la nube.");
+    } else {
       cargarCxcDeSupabase();
-      setAlertaAdminMsg("✅ Estatus de Cuenta por Cobrar actualizado.");
-      setTimeout(() => setAlertaAdminMsg(''), 3000);
+      setAlertaAdminMsg(`✅ ¡Estatus de Cuenta por Cobrar actualizado a [${nuevoEstatus}]!`);
+      setTimeout(() => setAlertaAdminMsg(''), 4000);
     }
   };
 
@@ -655,7 +665,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  // MANEJO DE DESPACHOS PARCIALES
   const actualizarCantidadItemOrden = (indexItem, nuevaCant) => {
     if (!ordenSeleccionada) return;
     const cantNum = parseFloat(nuevaCant) || 0;
@@ -693,7 +702,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           .eq('id', ordenSeleccionada.supabase_db_id);
       }
 
-      // Si la orden ya estaba aprobada o se aprueba al guardar, sincronizar/actualizar con CxC
       if (ordenSeleccionada.estatus.includes('Aprobado') || ordenSeleccionada.estatus.includes('Despachado')) {
         await registrarEnCxc(ordenSeleccionada);
       }
@@ -1062,10 +1070,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 </select>
               </div>
 
-              <p style={{ fontSize: '11px', color: '#38bdf8', marginBottom: '8px' }}>
-                💡 <em>Ajuste Parcial: Cambia las cantidades si vas a despachar incompleto y pulsa el botón naranja.</em>
-              </p>
-
               <div style={{ maxHeight: '200px', overflowY: 'auto', borderTop: '1px solid #5c3a2a', paddingTop: '10px', marginBottom: '15px' }}>
                 {ordenSeleccionada.items && ordenSeleccionada.items.map((it, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
@@ -1102,12 +1106,12 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* MÓDULO CUENTAS POR COBRAR (CxC) */}
+      {/* MÓDULO CUENTAS POR COBRAR (CxC) CON BOTÓN DE GUARDAR */}
       {pestana === 'cxc' && (
         <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>💳 Módulo de Cuentas por Cobrar (CxC) - Sucursales</h3>
           <p style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '20px' }}>
-            Aquí se registran de forma automática las deudas generadas por cada requisición aprobada o despachada.
+            Selecciona el nuevo estatus y haz clic en <strong>💾 Guardar</strong> para actualizar la cuenta.
           </p>
           
           {listaCxc.length === 0 ? (
@@ -1125,7 +1129,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                     <th style={{ padding: '10px' }}>Monto ($)</th>
                     <th style={{ padding: '10px' }}>Monto (Bs)</th>
                     <th style={{ padding: '10px' }}>Estatus de Pago</th>
-                    <th style={{ padding: '10px' }}>Acción / Cobro</th>
+                    <th style={{ padding: '10px' }}>Acción / Guardar</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1136,17 +1140,26 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                       <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{cxc.fecha}</td>
                       <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
                       <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{cxc.estatus_pago}</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#38bdf8' }}>{cxc.estatus_pago}</td>
                       <td style={{ padding: '10px' }}>
-                        <select 
-                          value={cxc.estatus_pago}
-                          onChange={(e) => cambiarEstatusPagoCxc(cxc.id, e.target.value)}
-                          style={{ backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '6px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}
-                        >
-                          <option value="Pendiente 💳">Pendiente 💳</option>
-                          <option value="Pagado Parcial 🟡">Pagado Parcial 🟡</option>
-                          <option value="Pagado Total ✅">Pagado Total ✅</option>
-                        </select>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <select 
+                            value={estatusCxcTemporal[cxc.id] || cxc.estatus_pago}
+                            onChange={(e) => setEstatusCxcTemporal({ ...estatusCxcTemporal, [cxc.id]: e.target.value })}
+                            style={{ backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '6px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}
+                          >
+                            <option value="Pendiente 💳">Pendiente 💳</option>
+                            <option value="Pagado Parcial 🟡">Pagado Parcial 🟡</option>
+                            <option value="Pagado Total ✅">Pagado Total ✅</option>
+                          </select>
+                          
+                          <button 
+                            onClick={() => guardarEstatusPagoCxc(cxc.id)}
+                            style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                          >
+                            💾 Guardar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
