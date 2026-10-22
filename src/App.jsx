@@ -8,61 +8,39 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
+  const [audioActivado, setAudioActivado] = useState(false);
 
-  // REGISTRAR NOTIFICACIONES DE ESCRITORIO
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
-    }
-  }, []);
+  const audioRef = useRef(null);
 
-  const solicitarPermisoNotificaciones = async () => {
-    if ('Notification' in window) {
-      const permiso = await Notification.requestPermission();
-      if (permiso === 'granted') {
-        alert("🔔 ¡Alarma de escritorio activada con éxito!");
-      } else {
-        alert("⚠️ Permiso denegado. Permite las notificaciones en la barra de Chrome.");
-      }
+  // MANTENER Y ACTIVAR AUDIO EN CHROME
+  const activarAudioNavegador = () => {
+    if (audioRef.current) {
+      audioRef.current.play().then(() => {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setAudioActivado(true);
+        alert("🔊 ¡Alarma de audio activada correctamente en Chrome!");
+      }).catch(err => {
+        console.error("Error al activar audio:", err);
+      });
     }
   };
 
-  // DISPARAR ALERTA DE SONIDO Y NOTIFICACIÓN DE WINDOWS
+  // DISPARADOR DE SIRENA
   const dispararAlertaSonora = () => {
-    // 1. Notificación nativa de Windows (suena aunque la ventana no tenga foco)
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification("🚨 ¡NUEVA REQUISICIÓN DESDE EL SAMBIL!", {
-        body: "Se ha recibido un nuevo pedido en el sistema.",
-        icon: URL_LOGO,
-        requireInteraction: true
-      });
+    // 1. Reproducir sonido MP3 mediante el elemento HTML Audio
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => console.log("Bloqueo de audio en Chrome:", e));
     }
 
-    // 2. Sirena interna Web Audio
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const hacerTono = (frecuencia, tiempoInicio, duracion) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
-          gain.gain.setValueAtTime(0.9, ctx.currentTime + tiempoInicio);
-          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(ctx.currentTime + tiempoInicio);
-          osc.stop(ctx.currentTime + tiempoInicio + duracion);
-        };
-
-        hacerTono(950, 0, 0.3);
-        hacerTono(650, 0.35, 0.3);
-        hacerTono(950, 0.7, 0.3);
-        hacerTono(650, 1.05, 0.3);
-      }
-    } catch (e) {
-      console.log("Error de audio:", e);
+    // 2. Disparar síntesis de voz si está disponible
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
+      mensajeVoz.lang = 'es-ES';
+      mensajeVoz.rate = 1.0; 
+      window.speechSynthesis.speak(mensajeVoz);
     }
   };
 
@@ -105,7 +83,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-push')
+      .channel('canal-alertas-oficina-sonido-directo')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -234,6 +212,13 @@ export default function App() {
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
 
+      {/* AUDIO HTML REAL DE ALARMA */}
+      <audio 
+        ref={audioRef} 
+        src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" 
+        preload="auto"
+      />
+
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
@@ -318,7 +303,8 @@ export default function App() {
           obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
           cargandoTasa={cargandoTasa}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
-          solicitarPermisoNotificaciones={solicitarPermisoNotificaciones}
+          activarAudioNavegador={activarAudioNavegador}
+          audioActivado={audioActivado}
         />
       )}
 
@@ -552,7 +538,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase, solicitarPermisoNotificaciones }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase, activarAudioNavegador, audioActivado }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -821,11 +807,12 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           
+          {/* BOTÓN PARA ACTIVAR EL SONIDO EN CHROME */}
           <button 
-            onClick={solicitarPermisoNotificaciones}
-            style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+            onClick={activarAudioNavegador}
+            style={{ backgroundColor: audioActivado ? '#059669' : '#dc2626', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
           >
-            🔔 Activar Alarma Windows
+            {audioActivado ? '🔊 Alarma Activada' : '🔔 ACTIVAR SONIDO ALARMA'}
           </button>
 
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
