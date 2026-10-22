@@ -9,25 +9,36 @@ export default function App() {
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
 
-  const audioRef = useRef(null);
-
-  // MANTIENE EL CANAL DE AUDIO ABIERTO AUTOMÁTICAMENTE EN SEGUNDO PLANO
+  // REGISTRAR NOTIFICACIONES DE ESCRITORIO
   useEffect(() => {
-    const intentarReproducir = async () => {
-      try {
-        if (audioRef.current) {
-          audioRef.current.volume = 0.01;
-          await audioRef.current.play();
-        }
-      } catch (e) {
-        console.log("Audio en segundo plano esperando interacción.");
-      }
-    };
-    intentarReproducir();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
+    }
   }, []);
 
-  // DISPARADOR DE SIRENA Y VOZ AUTOMÁTICA
+  const solicitarPermisoNotificaciones = async () => {
+    if ('Notification' in window) {
+      const permiso = await Notification.requestPermission();
+      if (permiso === 'granted') {
+        alert("🔔 ¡Alarma de escritorio activada con éxito!");
+      } else {
+        alert("⚠️ Permiso denegado. Permite las notificaciones en la barra de Chrome.");
+      }
+    }
+  };
+
+  // DISPARAR ALERTA DE SONIDO Y NOTIFICACIÓN DE WINDOWS
   const dispararAlertaSonora = () => {
+    // 1. Notificación nativa de Windows (suena aunque la ventana no tenga foco)
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification("🚨 ¡NUEVA REQUISICIÓN DESDE EL SAMBIL!", {
+        body: "Se ha recibido un nuevo pedido en el sistema.",
+        icon: URL_LOGO,
+        requireInteraction: true
+      });
+    }
+
+    // 2. Sirena interna Web Audio
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
@@ -52,14 +63,6 @@ export default function App() {
       }
     } catch (e) {
       console.log("Error de audio:", e);
-    }
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
-      mensajeVoz.lang = 'es-ES';
-      mensajeVoz.rate = 1.0; 
-      window.speechSynthesis.speak(mensajeVoz);
     }
   };
 
@@ -102,7 +105,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-oficina-bcv-auto')
+      .channel('canal-alertas-oficina-push')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -177,7 +180,6 @@ export default function App() {
     }
   };
 
-  // BOTÓN AUTOMÁTICO DE OBTENER TASA BCV
   const obtenerTasaBcvAutomatica = async () => {
     setCargandoTasa(true);
     try {
@@ -231,13 +233,6 @@ export default function App() {
 
   return (
     <div style={{ backgroundColor: '#0b0f19', color: '#f3f4f6', minHeight: '100vh', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
-
-      <audio 
-        ref={audioRef} 
-        src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" 
-        loop 
-        style={{ display: 'none' }} 
-      />
 
       {modo === 'menu' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
@@ -323,6 +318,7 @@ export default function App() {
           obtenerTasaBcvAutomatica={obtenerTasaBcvAutomatica}
           cargandoTasa={cargandoTasa}
           cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
+          solicitarPermisoNotificaciones={solicitarPermisoNotificaciones}
         />
       )}
 
@@ -440,7 +436,6 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          {/* CONTROL DE TASA BCV CON BOTÓN AUTOMÁTICO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
@@ -557,7 +552,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   );
 }
 
-function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase }) {
+function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setListaRequisiciones, listaAdmins, setListaAdmins, nuevaAlertaAdmin, setNuevaAlertaAdmin, productosCatalogo, cargarProductosDeSupabase, tasaBcv, setTasaBcv, guardarTasaEnSupabase, obtenerTasaBcvAutomatica, cargandoTasa, cargarRequisicionesDeSupabase, solicitarPermisoNotificaciones }) {
   const [pestana, setPestana] = useState('requisiciones');
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
@@ -826,7 +821,13 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          {/* CONTROL DE TASA BCV CON BOTÓN AUTOMÁTICO EN PANEL ADMIN */}
+          <button 
+            onClick={solicitarPermisoNotificaciones}
+            style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+          >
+            🔔 Activar Alarma Windows
+          </button>
+
           <div style={{ backgroundColor: '#1f2937', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #374151', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
