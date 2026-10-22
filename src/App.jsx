@@ -1,36 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
 
-// --- FUNCIÓN DE SONIDO DE ALERTA SINTETIZADO ---
+// --- SISTEMA DE AUDIO REFORZADO PARA NAVEGADORES ---
+let audioCtxGlobal = null;
+
+const inicializarAudioContext = () => {
+  if (!audioCtxGlobal) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      audioCtxGlobal = new AudioContext();
+    }
+  }
+  if (audioCtxGlobal && audioCtxGlobal.state === 'suspended') {
+    audioCtxGlobal.resume();
+  }
+};
+
 const reproducirAlertaSonora = () => {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    inicializarAudioContext();
+    if (!audioCtxGlobal) return;
 
     const reproducirBeep = (freq, duracion, delay) => {
       setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duracion);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + duracion);
+        try {
+          const osc = audioCtxGlobal.createOscillator();
+          const gain = audioCtxGlobal.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, audioCtxGlobal.currentTime);
+          gain.gain.setValueAtTime(0.4, audioCtxGlobal.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioCtxGlobal.currentTime + duracion);
+          osc.connect(gain);
+          gain.connect(audioCtxGlobal.destination);
+          osc.start();
+          osc.stop(audioCtxGlobal.currentTime + duracion);
+        } catch (e) {
+          console.error("Error reproduciendo beep:", e);
+        }
       }, delay);
     };
 
-    // Secuencia de beeps de alarma (3 tonos agudos)
-    reproducirBeep(880, 0.25, 0);
-    reproducirBeep(1100, 0.25, 300);
-    reproducirBeep(1320, 0.4, 600);
+    // Alarma potente de 4 tonos
+    reproducirBeep(880, 0.2, 0);
+    reproducirBeep(1100, 0.2, 250);
+    reproducirBeep(880, 0.2, 500);
+    reproducirBeep(1320, 0.4, 750);
   } catch (e) {
-    console.error("Error al reproducir audio:", e);
+    console.error("Error general de audio:", e);
   }
 };
 
@@ -39,6 +57,21 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
+
+  // Activar audio con cualquier interacción inicial
+  useEffect(() => {
+    const habilitarAudio = () => {
+      inicializarAudioContext();
+      window.removeEventListener('click', habilitarAudio);
+      window.removeEventListener('keydown', habilitarAudio);
+    };
+    window.addEventListener('click', habilitarAudio);
+    window.addEventListener('keydown', habilitarAudio);
+    return () => {
+      window.removeEventListener('click', habilitarAudio);
+      window.removeEventListener('keydown', habilitarAudio);
+    };
+  }, []);
 
   // --- CATÁLOGO DE PRODUCTOS DESDE SUPABASE ---
   const [productosCatalogo, setProductosCatalogo] = useState([]);
@@ -60,23 +93,25 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y POLLING AUTOMÁTICO DE RESPALDO ---
+  // --- REQUISICIONES REALTIME Y POLLING AUTOMÁTICO ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
-  const [conteoAnterior, setConteoAnterior] = useState(0);
+  const conteoRef = useRef(0);
 
-  const cargarRequisicionesDeSupabase = async () => {
+  const cargarRequisicionesDeSupabase = async (esEventoRealtime = false) => {
     const { data, error } = await supabase
       .from('requisiciones')
-      .select('*');
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error al cargar requisiciones:', error);
     } else if (data) {
-      if (conteoAnterior > 0 && data.length > conteoAnterior) {
+      // Si la cantidad de requisiciones aumentó o es un evento en vivo
+      if (esEventoRealtime || (conteoRef.current > 0 && data.length > conteoRef.current)) {
         setNuevaAlertaAdmin(true);
-        reproducirAlertaSonora(); // 🔊 Sonido reproducido al detectar nuevo registro
+        reproducirAlertaSonora(); // 🔊 Suena SIEMPRE (Menú o Admin)
       }
-      setConteoAnterior(data.length);
+      conteoRef.current = data.length;
 
       setListaRequisiciones(data.map(item => ({
         ...item.datos,
@@ -88,30 +123,28 @@ export default function App() {
   useEffect(() => {
     cargarRequisicionesDeSupabase();
 
-    // 1. Canal Realtime instantáneo
+    // 1. Canal Realtime Instantáneo
     const canalRequisiciones = supabase
-      .channel('canal-alertas-definitivo')
+      .channel('canal-alertas-global-v2')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
         (payload) => {
-          cargarRequisicionesDeSupabase();
-          setNuevaAlertaAdmin(true);
-          reproducirAlertaSonora(); // 🔊 Sonido instantáneo
+          cargarRequisicionesDeSupabase(true);
         }
       )
       .subscribe();
 
-    // 2. Respaldo de verificación cada 2 segundos
+    // 2. Respaldo por consulta cada 2 segundos
     const intervalo = setInterval(() => {
-      cargarRequisicionesDeSupabase();
+      cargarRequisicionesDeSupabase(false);
     }, 2000);
 
     return () => {
       supabase.removeChannel(canalRequisiciones);
       clearInterval(intervalo);
     };
-  }, [conteoAnterior]);
+  }, []);
 
   // --- TASA BCV DESDE SUPABASE Y ACTUALIZACIÓN AUTOMÁTICA ---
   const [tasaBcv, setTasaBcv] = useState(() => {
@@ -307,7 +340,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER QUE NUNCA APARECE EN LA SUCURSAL */}
+      {/* BANNER VISIBLE EN MENÚ PRINCIPAL Y EN PANEL ADMIN (NUNCA EN SUCURSAL) */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
@@ -395,7 +428,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     };
 
     await guardarRequisicionEnNube(nuevaOrden);
-    await cargarRequisicionesDeSupabase();
+    await cargarRequisicionesDeSupabase(true);
 
     setMensajeExito("¡Requisición enviada con éxito a Planta / Producción!");
     setTimeout(() => setMensajeExito(''), 4000);
@@ -1121,7 +1154,7 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
 };
 
 function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, modo }) {
-  // BLOQUEO STRICTO: Jamás se mostrará en 'sucursal'
+  // Se muestra si hay alerta Y el usuario está en 'admin' o 'menu' (nunca en 'sucursal')
   if (!nuevaAlertaAdmin || modo === 'sucursal') return null;
 
   return (
