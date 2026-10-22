@@ -119,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v8')
+      .channel('canal-alertas-global-v10')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -524,7 +524,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '15px', maxHeight: '58vh', overflowY: 'auto' }}>
             {productosFiltrados.length === 0 ? (
-              <p style={{ color: '#d1d5db', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para importar tu carga masiva.</p>
+              <p style={{ color: '#d1d5db', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para crear o importar tu catálogo.</p>
             ) : (
               productosFiltrados.map(prod => (
                 <div key={prod.id} style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', border: '1px solid #7c4a32', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 10px rgba(0,0,0,0.4)' }}>
@@ -594,10 +594,15 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
   const [productoEditandoId, setProductoEditandoId] = useState(null);
   const [datosEdicion, setDatosEdicion] = useState({ nombre: '', categoria: '', unidad: '', precio: '' });
 
+  // ESTADO FORMULARIO PRODUCTO INDIVIDUAL
+  const [nuevoProdNombre, setNuevoProdNombre] = useState('');
+  const [nuevoProdCat, setNuevoProdCat] = useState('Panadería');
+  const [nuevoProdUnidad, setNuevoProdUnidad] = useState('Unidad');
+  const [nuevoProdPrecio, setNuevoProdPrecio] = useState('');
+
   // MÓDULO CXC (ESTADO)
   const [listaCxc, setListaCxc] = useState([]);
   const [estatusCxcTemporal, setEstatusCxcTemporal] = useState({});
-  // Filas en las que el usuario habilitó la edición explícitamente
   const [filasEditables, setFilasEditables] = useState({});
 
   const cargarCxcDeSupabase = async () => {
@@ -646,7 +651,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       alert("❌ Error al guardar el estatus en la nube.");
     } else {
       cargarCxcDeSupabase();
-      // Bloquear nuevamente la fila al guardar
       setFilasEditables(prev => ({ ...prev, [idDb]: false }));
       setAlertaAdminMsg(`✅ Estatus guardado y bloqueado correctamente: [${nuevoEstatus}]`);
       setTimeout(() => setAlertaAdminMsg(''), 4000);
@@ -655,6 +659,136 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   const habilitarEdicionCxc = (idDb) => {
     setFilasEditables(prev => ({ ...prev, [idDb]: true }));
+  };
+
+  // 1. ELIMINAR CUENTA POR COBRAR
+  const eliminarCxc = async (idDb, idOrden) => {
+    if (window.confirm(`⚠️ ¿Deseas eliminar permanentemente la Cuenta por Cobrar de la orden ${idOrden}?`)) {
+      try {
+        const { error } = await supabase.from('cxc').delete().eq('id', idDb);
+        if (!error) {
+          cargarCxcDeSupabase();
+          setAlertaAdminMsg(`🗑️ Registro CxC ${idOrden} eliminado.`);
+          setTimeout(() => setAlertaAdminMsg(''), 4000);
+        } else {
+          alert("❌ Error al eliminar el registro.");
+        }
+      } catch (err) {
+        console.error("Error al eliminar CxC:", err);
+      }
+    }
+  };
+
+  // 2. IMPRIMIR COMPROBANTE/FACTURA DE CXC
+  const imprimirFacturaCxc = (cxc) => {
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Factura / Comprobante de Cobro - ${cxc.id_orden}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; max-width: 650px; margin: 0 auto; border: 1px solid #ccc; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-size: 22px; color: #351c12; }
+            .header p { margin: 2px 0; font-size: 12px; color: #555; }
+            .info { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
+            .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; width: 48%; border: 1px solid #eee; }
+            .tabla-totales { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .tabla-totales th, .tabla-totales td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
+            .tabla-totales th { background: #f3f4f6; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+            .badge-pagado { background: #d1fae5; color: #065f46; }
+            .badge-pendiente { background: #fef3c7; color: #92400e; }
+            .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #777; border-top: 1px dashed #ccc; padding-top: 15px; }
+            .firmas { display: flex; justify-content: space-between; margin-top: 50px; }
+            .linea-firma { width: 40%; border-top: 1px solid #000; text-align: center; font-size: 11px; paddingTop: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>FALCON CREST</h1>
+            <p><strong>Comprobante de Cuenta por Cobrar / Factura Sucursal</strong></p>
+            <p>Sambil Punto Fijo — Planta y Control de Distribución</p>
+          </div>
+
+          <div class="info">
+            <div class="info-box">
+              <p><strong>N° Orden / Requisición:</strong> ${cxc.id_orden}</p>
+              <p><strong>Sucursal Deudora:</strong> ${cxc.sucursal}</p>
+            </div>
+            <div class="info-box">
+              <p><strong>Fecha de Registro:</strong> ${cxc.fecha}</p>
+              <p><strong>Estatus de Cobro:</strong> 
+                <span class="badge ${cxc.estatus_pago.includes('Pagado') ? 'badge-pagado' : 'badge-pendiente'}">
+                  ${cxc.estatus_pago}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <table class="tabla-totales">
+            <thead>
+              <tr>
+                <th>Concepto / Descripción</th>
+                <th style="text-align: right;">Monto USD ($)</th>
+                <th style="text-align: right;">Monto BS (Tasa BCV)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Despacho de Mercancía Requisición <strong>${cxc.id_orden}</strong></td>
+                <td style="text-align: right; font-weight: bold; color: #059669;">$${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
+                <td style="text-align: right; font-weight: bold; color: #d97706;">Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="firmas">
+            <div class="linea-firma">Firma Entregado (Planta)</div>
+            <div class="linea-firma">Firma Recibido y Conforme (Sucursal)</div>
+          </div>
+
+          <div class="footer">
+            Documento generado automáticamente por el Sistema Falcon Crest Requisiciones.
+          </div>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => ventana.print(), 500);
+  };
+
+  // 3. AGREGAR PRODUCTO INDIVIDUAL MANUALMENTE
+  const handleCrearProductoIndividual = async (e) => {
+    e.preventDefault();
+    if (!nuevoProdNombre.trim() || !nuevoProdPrecio || isNaN(parseFloat(nuevoProdPrecio))) {
+      alert("⚠️ Introduce un nombre y precio válido para el artículo.");
+      return;
+    }
+
+    try {
+      const nuevoObj = {
+        id: 'p-man-' + Date.now(),
+        nombre: nuevoProdNombre.trim().toUpperCase(),
+        categoria: nuevoProdCat,
+        unidad: nuevoProdUnidad,
+        precio: parseFloat(nuevoProdPrecio)
+      };
+
+      const { error } = await supabase.from('productos').insert([nuevoObj]);
+      if (error) {
+        alert("❌ Error guardando el producto en Supabase.");
+      } else {
+        await cargarProductosDeSupabase();
+        setNuevoProdNombre('');
+        setNuevoProdPrecio('');
+        setAlertaAdminMsg(`✅ ¡Artículo "${nuevoObj.nombre}" creado con éxito en la nube!`);
+        setTimeout(() => setAlertaAdminMsg(''), 4000);
+      }
+    } catch (err) {
+      console.error("Error al crear producto individual:", err);
+    }
   };
 
   const categoriasDisponibles = [
@@ -826,19 +960,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  const vaciarTodosLosArticulos = async () => {
-    if (window.confirm("🚨 ¿ESTÁS SEGURO? Se eliminarán TODOS los artículos de Supabase.")) {
-      try {
-        await supabase.from('productos').delete().neq('id', '');
-        await cargarProductosDeSupabase();
-        setAlertaAdminMsg("🗑️ Catálogo vaciado en la nube con éxito.");
-      } catch (err) {
-        console.error("Error:", err);
-      }
-      setTimeout(() => setAlertaAdminMsg(''), 4000);
-    }
-  };
-
   const eliminarArticuloUnico = async (id, nombre) => {
     if (window.confirm(`¿Eliminar "${nombre}" del catálogo en la nube?`)) {
       try {
@@ -997,7 +1118,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </button>
 
         <button onClick={() => cambiarPestana('crear_producto')} style={{ padding: '10px 20px', backgroundColor: pestana === 'crear_producto' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'crear_producto' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          ➕ Carga Masiva
+          ➕ Crear / Cargar Artículos
         </button>
 
         <button onClick={() => cambiarPestana('seguridad')} style={{ padding: '10px 20px', backgroundColor: pestana === 'seguridad' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'seguridad' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -1111,7 +1232,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* MÓDULO CUENTAS POR COBRAR (CxC) CON BLOQUEO TRAS GUARDAR */}
+      {/* MÓDULO CUENTAS POR COBRAR (CxC) MEJORADO CON BORRAR E IMPRIMIR */}
       {pestana === 'cxc' && (
         <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>💳 Módulo de Cuentas por Cobrar (CxC) - Sucursales</h3>
@@ -1154,7 +1275,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                           {cxc.estatus_pago}
                         </td>
                         <td style={{ padding: '10px' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                             <select 
                               disabled={estaBloqueado}
                               value={estatusCxcTemporal[cxc.id] || cxc.estatus_pago}
@@ -1191,6 +1312,24 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                                 💾 Guardar
                               </button>
                             )}
+
+                            {/* BOTÓN IMPRIMIR FACTURA */}
+                            <button 
+                              onClick={() => imprimirFacturaCxc(cxc)}
+                              title="Imprimir Factura / Comprobante de Cobro"
+                              style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                            >
+                              🖨️
+                            </button>
+
+                            {/* BOTÓN ELIMINAR REGISTRO */}
+                            <button 
+                              onClick={() => eliminarCxc(cxc.id, cxc.id_orden)}
+                              title="Eliminar registro de Cuenta por Cobrar"
+                              style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                            >
+                              🗑️
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1271,15 +1410,86 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
+      {/* PESTAÑA: CREAR / CARGAR ARTÍCULOS (SECCIÓN INDIVIDUAL + CSV) */}
       {pestana === 'crear_producto' && (
-        <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', maxWidth: '600px', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
-          <h3 style={{ color: '#38bdf8', margin: '0 0 10px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
-          <div style={{ border: '2px dashed #7c4a32', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#0a0503', marginBottom: '15px' }}>
-            <input type="file" accept=".csv, .txt" onChange={handleCargaMasiva} style={{ display: 'none' }} id="excelInput" />
-            <label htmlFor="excelInput" style={{ backgroundColor: '#007bff', color: '#fff', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'inline-block' }}>
-              📁 Cargar Archivo CSV / TXT
-            </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          
+          {/* FORMULARIO CREAR INDIVIDUAL */}
+          <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>➕ Crear Artículo Individual</h3>
+            <form onSubmit={handleCrearProductoIndividual} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Nombre del Artículo:</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: PAN DE JAMÓN ESPECIAL" 
+                  value={nuevoProdNombre} 
+                  onChange={e => setNuevoProdNombre(e.target.value)}
+                  style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px', outline: 'none' }} 
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Categoría:</label>
+                  <select 
+                    value={nuevoProdCat} 
+                    onChange={e => setNuevoProdCat(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px' }}
+                  >
+                    {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Unidad de Medida:</label>
+                  <select 
+                    value={nuevoProdUnidad} 
+                    onChange={e => setNuevoProdUnidad(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px' }}
+                  >
+                    {unidadesDisponibles.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: '#34d399', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Precio en USD ($):</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="0.00" 
+                  value={nuevoProdPrecio} 
+                  onChange={e => setNuevoProdPrecio(e.target.value)}
+                  style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#34d399', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px', fontWeight: 'bold', outline: 'none' }} 
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}
+              >
+                💾 Guardar Artículo en Supabase
+              </button>
+            </form>
           </div>
+
+          {/* CARGA MASIVA CSV */}
+          <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color: '#38bdf8', margin: '0 0 15px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
+            <p style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '15px' }}>
+              Sube un archivo de hoja de cálculo en formato <strong>CSV</strong> para importar listas de precios grandes de golpe.
+            </p>
+            <div style={{ border: '2px dashed #7c4a32', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#0a0503' }}>
+              <input type="file" accept=".csv, .txt" onChange={handleCargaMasiva} style={{ display: 'none' }} id="excelInput" />
+              <label htmlFor="excelInput" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'inline-block' }}>
+                📁 Cargar Archivo CSV / TXT
+              </label>
+            </div>
+          </div>
+
         </div>
       )}
 
