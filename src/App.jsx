@@ -119,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v7')
+      .channel('canal-alertas-global-v8')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -596,14 +596,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   // MÓDULO CXC (ESTADO)
   const [listaCxc, setListaCxc] = useState([]);
-  // Estados temporales para los selectores de CxC antes de guardar
   const [estatusCxcTemporal, setEstatusCxcTemporal] = useState({});
+  // Filas en las que el usuario habilitó la edición explícitamente
+  const [filasEditables, setFilasEditables] = useState({});
 
   const cargarCxcDeSupabase = async () => {
     const { data, error } = await supabase.from('cxc').select('*').order('created_at', { ascending: false });
     if (!error && data) {
       setListaCxc(data);
-      // Inicializar estados temporales
       const temps = {};
       data.forEach(item => {
         temps[item.id] = item.estatus_pago;
@@ -618,7 +618,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   const registrarEnCxc = async (orden) => {
     try {
-      // Verificar si ya existe en cxc para esta orden
       const { data: existe } = await supabase.from('cxc').select('*').eq('id_orden', orden.id);
       if (existe && existe.length > 0) return;
 
@@ -647,9 +646,15 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       alert("❌ Error al guardar el estatus en la nube.");
     } else {
       cargarCxcDeSupabase();
-      setAlertaAdminMsg(`✅ ¡Estatus de Cuenta por Cobrar actualizado a [${nuevoEstatus}]!`);
+      // Bloquear nuevamente la fila al guardar
+      setFilasEditables(prev => ({ ...prev, [idDb]: false }));
+      setAlertaAdminMsg(`✅ Estatus guardado y bloqueado correctamente: [${nuevoEstatus}]`);
       setTimeout(() => setAlertaAdminMsg(''), 4000);
     }
+  };
+
+  const habilitarEdicionCxc = (idDb) => {
+    setFilasEditables(prev => ({ ...prev, [idDb]: true }));
   };
 
   const categoriasDisponibles = [
@@ -1106,12 +1111,12 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* MÓDULO CUENTAS POR COBRAR (CxC) CON BOTÓN DE GUARDAR */}
+      {/* MÓDULO CUENTAS POR COBRAR (CxC) CON BLOQUEO TRAS GUARDAR */}
       {pestana === 'cxc' && (
         <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>💳 Módulo de Cuentas por Cobrar (CxC) - Sucursales</h3>
           <p style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '20px' }}>
-            Selecciona el nuevo estatus y haz clic en <strong>💾 Guardar</strong> para actualizar la cuenta.
+            Las cuentas guardadas como <strong>Pagado Total ✅</strong> se bloquean automáticamente para proteger la auditoría.
           </p>
           
           {listaCxc.length === 0 ? (
@@ -1133,36 +1138,64 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                   </tr>
                 </thead>
                 <tbody>
-                  {listaCxc.map(cxc => (
-                    <tr key={cxc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{cxc.id_orden}</td>
-                      <td style={{ padding: '10px', color: '#fff' }}>{cxc.sucursal}</td>
-                      <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{cxc.fecha}</td>
-                      <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#38bdf8' }}>{cxc.estatus_pago}</td>
-                      <td style={{ padding: '10px' }}>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <select 
-                            value={estatusCxcTemporal[cxc.id] || cxc.estatus_pago}
-                            onChange={(e) => setEstatusCxcTemporal({ ...estatusCxcTemporal, [cxc.id]: e.target.value })}
-                            style={{ backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '6px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px' }}
-                          >
-                            <option value="Pendiente 💳">Pendiente 💳</option>
-                            <option value="Pagado Parcial 🟡">Pagado Parcial 🟡</option>
-                            <option value="Pagado Total ✅">Pagado Total ✅</option>
-                          </select>
-                          
-                          <button 
-                            onClick={() => guardarEstatusPagoCxc(cxc.id)}
-                            style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
-                          >
-                            💾 Guardar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {listaCxc.map(cxc => {
+                    const esPagadoTotal = cxc.estatus_pago === 'Pagado Total ✅';
+                    const estaHabilitadoEdicion = filasEditables[cxc.id];
+                    const estaBloqueado = esPagadoTotal && !estaHabilitadoEdicion;
+
+                    return (
+                      <tr key={cxc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{cxc.id_orden}</td>
+                        <td style={{ padding: '10px', color: '#fff' }}>{cxc.sucursal}</td>
+                        <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{cxc.fecha}</td>
+                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: esPagadoTotal ? '#34d399' : '#38bdf8' }}>
+                          {cxc.estatus_pago}
+                        </td>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <select 
+                              disabled={estaBloqueado}
+                              value={estatusCxcTemporal[cxc.id] || cxc.estatus_pago}
+                              onChange={(e) => setEstatusCxcTemporal({ ...estatusCxcTemporal, [cxc.id]: e.target.value })}
+                              style={{ 
+                                backgroundColor: estaBloqueado ? '#0f172a' : '#1c0f0a', 
+                                color: estaBloqueado ? '#94a3b8' : '#fff', 
+                                border: '1px solid #5c3a2a', 
+                                padding: '6px', 
+                                borderRadius: '6px', 
+                                fontWeight: 'bold', 
+                                fontSize: '12px',
+                                cursor: estaBloqueado ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              <option value="Pendiente 💳">Pendiente 💳</option>
+                              <option value="Pagado Parcial 🟡">Pagado Parcial 🟡</option>
+                              <option value="Pagado Total ✅">Pagado Total ✅</option>
+                            </select>
+                            
+                            {estaBloqueado ? (
+                              <button 
+                                onClick={() => habilitarEdicionCxc(cxc.id)}
+                                title="Desbloquear para modificar el estatus"
+                                style={{ backgroundColor: '#475569', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                              >
+                                🔓 Editar
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => guardarEstatusPagoCxc(cxc.id)}
+                                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                              >
+                                💾 Guardar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
