@@ -3,6 +3,37 @@ import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
 
+// --- FUNCIÓN DE SONIDO DE ALERTA SINTETIZADO ---
+const reproducirAlertaSonora = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    const reproducirBeep = (freq, duracion, delay) => {
+      setTimeout(() => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duracion);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duracion);
+      }, delay);
+    };
+
+    // Secuencia de beeps de alarma (3 tonos agudos)
+    reproducirBeep(880, 0.25, 0);
+    reproducirBeep(1100, 0.25, 300);
+    reproducirBeep(1320, 0.4, 600);
+  } catch (e) {
+    console.error("Error al reproducir audio:", e);
+  }
+};
+
 export default function App() {
   const [modo, setModo] = useState('menu'); 
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
@@ -42,7 +73,8 @@ export default function App() {
       console.error('Error al cargar requisiciones:', error);
     } else if (data) {
       if (conteoAnterior > 0 && data.length > conteoAnterior) {
-        setNuevaAlertaAdmin(true); // Activa la alerta
+        setNuevaAlertaAdmin(true);
+        reproducirAlertaSonora(); // 🔊 Sonido reproducido al detectar nuevo registro
       }
       setConteoAnterior(data.length);
 
@@ -65,6 +97,7 @@ export default function App() {
         (payload) => {
           cargarRequisicionesDeSupabase();
           setNuevaAlertaAdmin(true);
+          reproducirAlertaSonora(); // 🔊 Sonido instantáneo
         }
       )
       .subscribe();
@@ -274,7 +307,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER MOSTRADO EN EL MENÚ PRINCIPAL Y EN EL PANEL ADMIN */}
+      {/* BANNER QUE NUNCA APARECE EN LA SUCURSAL */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
@@ -1088,8 +1121,8 @@ const guardarRequisicionEnNube = async (detallesRequisicion) => {
 };
 
 function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, modo }) {
-  // Se muestra si hay una alerta Y el usuario está en 'admin' o en el 'menu' principal
-  if (!nuevaAlertaAdmin || (modo !== 'admin' && modo !== 'menu')) return null;
+  // BLOQUEO STRICTO: Jamás se mostrará en 'sucursal'
+  if (!nuevaAlertaAdmin || modo === 'sucursal') return null;
 
   return (
     <div
