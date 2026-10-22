@@ -3,7 +3,7 @@ import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
 
-// --- SISTEMA DE AUDIO REFORZADO PARA NAVEGADORES ---
+// --- SISTEMA DE AUDIO REFORZADO ---
 let audioCtxGlobal = null;
 
 const inicializarAudioContext = () => {
@@ -37,7 +37,7 @@ const reproducirAlertaSonora = () => {
           osc.start();
           osc.stop(audioCtxGlobal.currentTime + duracion);
         } catch (e) {
-          console.error("Error reproduciendo beep:", e);
+          console.error("Error reproducir beep:", e);
         }
       }, delay);
     };
@@ -119,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v5')
+      .channel('canal-alertas-global-v6')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -609,18 +609,27 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
   }, []);
 
   const registrarEnCxc = async (orden) => {
-    const nuevaDeuda = {
-      id_orden: orden.id,
-      sucursal: orden.sucursal || 'Cafetín Sambil',
-      fecha: orden.fecha,
-      totalUSD: parseFloat(orden.totalUSD) || 0,
-      totalBS: parseFloat(orden.totalBS) || 0,
-      estatus_pago: 'Pendiente 💳'
-    };
+    try {
+      const nuevaDeuda = {
+        id_orden: orden.id,
+        sucursal: orden.sucursal || 'Cafetín Sambil',
+        fecha: orden.fecha,
+        totalUSD: parseFloat(orden.totalUSD) || 0,
+        totalBS: parseFloat(orden.totalBS) || 0,
+        estatus_pago: 'Pendiente 💳'
+      };
 
-    const { error } = await supabase.from('cxc').insert([nuevaDeuda]);
-    if (!error) {
-      cargarCxcDeSupabase();
+      const { error } = await supabase.from('cxc').insert([nuevaDeuda]);
+      if (error) {
+        console.error("Error guardando en CxC:", error);
+        alert("⚠️ Recuerda crear la tabla 'cxc' en Supabase para que guarde las Cuentas por Cobrar.");
+      } else {
+        cargarCxcDeSupabase();
+        setAlertaAdminMsg("💳 ¡Orden registrada en Cuentas por Cobrar (CxC)!");
+        setTimeout(() => setAlertaAdminMsg(''), 4000);
+      }
+    } catch (e) {
+      console.error("Error:", e);
     }
   };
 
@@ -646,7 +655,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  // MANEJO DE DESPACHOS PARCIALES (Modificar cantidad de un ítem en la orden)
+  // MANEJO DE DESPACHOS PARCIALES
   const actualizarCantidadItemOrden = (indexItem, nuevaCant) => {
     if (!ordenSeleccionada) return;
     const cantNum = parseFloat(nuevaCant) || 0;
@@ -658,7 +667,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
       return it;
     });
 
-    // Recalcular totales con la cantidad parcial
     const nuevoTotalUSD = itemsActualizados.reduce((acc, i) => acc + ((parseFloat(i.precio) || 0) * (parseFloat(i.cantidad) || 0)), 0);
     const nuevoTotalBS = nuevoTotalUSD * (parseFloat(tasaBcv) || 1);
 
@@ -674,6 +682,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   const guardarCambiosParcialesOrden = async () => {
     if (!ordenSeleccionada) return;
+
     setListaRequisiciones(prev => prev.map(o => o.id === ordenSeleccionada.id ? ordenSeleccionada : o));
 
     try {
@@ -683,7 +692,13 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           .update({ datos: ordenSeleccionada })
           .eq('id', ordenSeleccionada.supabase_db_id);
       }
-      setAlertaAdminMsg("✅ Cantidades parciales y totales recalculados con éxito.");
+
+      // Si la orden ya estaba aprobada o se aprueba al guardar, sincronizar/actualizar con CxC
+      if (ordenSeleccionada.estatus.includes('Aprobado') || ordenSeleccionada.estatus.includes('Despachado')) {
+        await registrarEnCxc(ordenSeleccionada);
+      }
+
+      setAlertaAdminMsg("✅ Cantidades parciales guardadas y totales recalculados.");
       setTimeout(() => setAlertaAdminMsg(''), 4000);
     } catch (e) {
       console.error("Error al actualizar orden parcial:", e);
@@ -705,7 +720,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           .eq('id', orden.supabase_db_id);
       }
 
-      // 📌 SI SE APRUEBA O DESPACHA, ENTRA AUTOMÁTICAMENTE A CXC
       if (nuevoEstatus.includes('Aprobado') || nuevoEstatus.includes('Despachado')) {
         await registrarEnCxc(ordenActualizada);
       }
@@ -978,7 +992,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </button>
       </div>
 
-      {/* CONTENIDO DE REQUISICIONES (CON DESPACHO PARCIAL) */}
+      {/* CONTENIDO DE REQUISICIONES */}
       {pestana === 'requisiciones' && (
         <div style={{ display: 'grid', gridTemplateColumns: ordenSeleccionada ? '1fr 440px' : '1fr', gap: '20px' }}>
           <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
@@ -1049,7 +1063,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               </div>
 
               <p style={{ fontSize: '11px', color: '#38bdf8', marginBottom: '8px' }}>
-                💡 <em>Ajuste Parcial: Si pidieron 5 y solo hay 3, cambia la cantidad abajo y pulsa "Guardar Cambios de Despacho".</em>
+                💡 <em>Ajuste Parcial: Cambia las cantidades si vas a despachar incompleto y pulsa el botón naranja.</em>
               </p>
 
               <div style={{ maxHeight: '200px', overflowY: 'auto', borderTop: '1px solid #5c3a2a', paddingTop: '10px', marginBottom: '15px' }}>
@@ -1098,7 +1112,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           
           {listaCxc.length === 0 ? (
             <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed #5c3a2a', borderRadius: '8px', color: '#9ca3af' }}>
-              No hay cuentas por cobrar registradas todavía. Aprueba una requisición para generar deuda automática.
+              No hay cuentas por cobrar registradas todavía en la nube.
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -1121,7 +1135,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                       <td style={{ padding: '10px', color: '#fff' }}>{cxc.sucursal}</td>
                       <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{cxc.fecha}</td>
                       <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. {(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
+                      <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>{cxc.estatus_pago}</td>
                       <td style={{ padding: '10px' }}>
                         <select 
