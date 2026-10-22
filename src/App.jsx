@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
@@ -8,76 +8,6 @@ export default function App() {
   const [usuarioActual, setUsuarioActual] = useState('sucursal');
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
-
-  const audioCtxRef = useRef(null);
-
-  // INICIALIZA EL MOTOR DE AUDIO AUTOMÁTICAMENTE CON CUALQUIER CLIC/INTERACCIÓN EN LA PANTALLA
-  useEffect(() => {
-    const inicializarAudioAutomatico = () => {
-      if (!audioCtxRef.current) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-          audioCtxRef.current = new AudioCtx();
-        }
-      }
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume();
-      }
-    };
-
-    window.addEventListener('click', inicializarAudioAutomatico, { once: false });
-    window.addEventListener('keydown', inicializarAudioAutomatico, { once: false });
-    window.addEventListener('touchstart', inicializarAudioAutomatico, { once: false });
-
-    return () => {
-      window.removeEventListener('click', inicializarAudioAutomatico);
-      window.removeEventListener('keydown', inicializarAudioAutomatico);
-      window.removeEventListener('touchstart', inicializarAudioAutomatico);
-    };
-  }, []);
-
-  // DISPARADOR DE SIRENA DUAL AUTOMÁTICO (SUENA EN TODAS LAS PC Y SESIONES SIMULTÁNEAMENTE)
-  const dispararAlertaSonora = () => {
-    // 1. Sirena sintética por sintetizador de frecuencias Web Audio
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = audioCtxRef.current || new AudioCtx();
-      
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
-
-      const hacerTono = (frecuencia, tiempoInicio, duracion) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(frecuencia, ctx.currentTime + tiempoInicio);
-        gain.gain.setValueAtTime(0.9, ctx.currentTime + tiempoInicio);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + tiempoInicio + duracion);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + tiempoInicio);
-        osc.stop(ctx.currentTime + tiempoInicio + duracion);
-      };
-
-      // Tono tipo alarma de fábrica / ambulancia (Repite 3 veces)
-      [0, 0.8, 1.6].forEach(delay => {
-        hacerTono(950, delay + 0, 0.3);
-        hacerTono(650, delay + 0.35, 0.3);
-      });
-    } catch (e) {
-      console.log("Error al reproducir audio Web:", e);
-    }
-
-    // 2. Anuncio de Voz Automático por Altavoz
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("¡Atención! Nueva requisición recibida desde el Sambil.");
-      mensajeVoz.lang = 'es-ES';
-      mensajeVoz.rate = 1.0; 
-      window.speechSynthesis.speak(mensajeVoz);
-    }
-  };
 
   // --- CATÁLOGO DE PRODUCTOS DESDE SUPABASE ---
   const [productosCatalogo, setProductosCatalogo] = useState([]);
@@ -99,7 +29,7 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y MONITOREO SIMULTÁNEO EN TODAS LAS PANTALLAS ---
+  // --- REQUISICIONES REALTIME Y MONITOREO GLOBAL ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
 
   const cargarRequisicionesDeSupabase = async () => {
@@ -118,14 +48,13 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-automatico-global')
+      .channel('canal-alertas-visual-definitivo')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
         (payload) => {
           cargarRequisicionesDeSupabase();
-          setNuevaAlertaAdmin(true);
-          dispararAlertaSonora();
+          setNuevaAlertaAdmin(true); // Activa la alerta visual gigante
         }
       )
       .subscribe();
@@ -334,7 +263,7 @@ export default function App() {
         />
       )}
 
-      {/* BANNER ROJO FLOTANTE GLOBAL */}
+      {/* BANNER ROJO GIGANTE FLOTANTE GLOBAL (INELUDIBLE) */}
       <BannerNuevaRequisicion 
         nuevaAlertaAdmin={nuevaAlertaAdmin} 
         setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
@@ -1161,18 +1090,19 @@ function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, setModo
         right: '25px',
         backgroundColor: '#DC2626',
         color: '#fff',
-        padding: '18px 26px',
-        borderRadius: '12px',
-        fontSize: '16px',
+        padding: '24px 35px',
+        borderRadius: '16px',
+        fontSize: '18px',
         fontWeight: 'bold',
         zIndex: 999999,
         cursor: 'pointer',
-        boxShadow: '0 10px 25px rgba(220, 38, 38, 0.7)',
-        border: '3px solid #FEF08A'
+        boxShadow: '0 15px 35px rgba(220, 38, 38, 0.9)',
+        border: '4px solid #FEF08A',
+        animation: 'pulse 1s infinite'
       }}
     >
-      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! <br/>
-      <span style={{ fontSize: '13px', textDecoration: 'underline' }}>Haz clic aquí para ver la orden</span>
+      🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! 🚨<br/>
+      <span style={{ fontSize: '14px', textDecoration: 'underline', color: '#FEF08A' }}>Haz clic aquí para ver la orden de inmediato</span>
     </div>
   );
 }
