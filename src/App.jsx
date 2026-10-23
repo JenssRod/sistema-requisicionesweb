@@ -119,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v10')
+      .channel('canal-alertas-global-v11')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -409,6 +409,15 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
     });
   };
 
+  // Función para eliminar un ítem directamente del carrito
+  const eliminarItemCarrito = (id) => {
+    setRequisicion(prev => {
+      const copia = { ...prev };
+      delete copia[id];
+      return copia;
+    });
+  };
+
   const totalItems = Object.values(requisicion).reduce((acc, item) => acc + (parseFloat(item.cantidad) || 0), 0);
   
   const totalUSD = Object.values(requisicion).reduce((acc, item) => {
@@ -551,17 +560,25 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             🛒 Requisición Actual ({totalItems})
           </h3>
 
-          <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid #5c3a2a', paddingTop: '8px' }}>
+          <div style={{ maxHeight: '220px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid #5c3a2a', paddingTop: '8px' }}>
             {Object.keys(requisicion).length === 0 ? (
               <p style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', margin: '15px 0' }}>No hay artículos seleccionados</p>
             ) : (
               Object.values(requisicion).map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '12px' }}>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px', gap: '6px' }}>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.nombre}>{item.nombre}</span>
                   <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', borderRadius: '4px', padding: '2px' }} />
-                  <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>
+                  <span style={{ color: '#34d399', width: '50px', textAlign: 'right', fontWeight: 'bold' }}>
                     ${((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0)).toFixed(2)}
                   </span>
+                  {/* BOTÓN BORRAR ÍTEM */}
+                  <button 
+                    onClick={() => eliminarItemCarrito(item.id)} 
+                    title="Eliminar artículo"
+                    style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', borderRadius: '4px', width: '22px', height: '22px', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    🗑️
+                  </button>
                 </div>
               ))
             )}
@@ -679,29 +696,36 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  // 2. IMPRIMIR COMPROBANTE/FACTURA DE CXC
+  // 2. IMPRIMIR COMPROBANTE/FACTURA DE CXC DETALLADA POR ÍTEM
   const imprimirFacturaCxc = (cxc) => {
+    // Buscar la orden correspondiente en listaRequisiciones para extraer los items detallados
+    const ordenAsociada = listaRequisiciones.find(r => r.id === cxc.id_orden);
+    const items = ordenAsociada ? ordenAsociada.items : [];
+    const tasaAplicada = ordenAsociada ? (ordenAsociada.tasaBcvAplicada || tasaBcv) : tasaBcv;
+
     const ventana = window.open('', '_blank');
     ventana.document.write(`
       <html>
         <head>
           <title>Factura / Comprobante de Cobro - ${cxc.id_orden}</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; max-width: 650px; margin: 0 auto; border: 1px solid #ccc; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; max-width: 750px; margin: 0 auto; border: 1px solid #ccc; }
             .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
             .header h1 { margin: 0; font-size: 22px; color: #351c12; }
             .header p { margin: 2px 0; font-size: 12px; color: #555; }
             .info { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
             .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; width: 48%; border: 1px solid #eee; }
-            .tabla-totales { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .tabla-totales th, .tabla-totales td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
-            .tabla-totales th { background: #f3f4f6; }
+            .tabla-items { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .tabla-items th, .tabla-items td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+            .tabla-items th { background: #f3f4f6; }
             .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
             .badge-pagado { background: #d1fae5; color: #065f46; }
             .badge-pendiente { background: #fef3c7; color: #92400e; }
+            .totales { margin-top: 20px; text-align: right; font-size: 14px; }
+            .totales p { margin: 4px 0; }
             .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #777; border-top: 1px dashed #ccc; padding-top: 15px; }
             .firmas { display: flex; justify-content: space-between; margin-top: 50px; }
-            .linea-firma { width: 40%; border-top: 1px solid #000; text-align: center; font-size: 11px; paddingTop: 5px; }
+            .linea-firma { width: 40%; border-top: 1px solid #000; text-align: center; font-size: 11px; padding-top: 5px; }
           </style>
         </head>
         <body>
@@ -715,9 +739,10 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
             <div class="info-box">
               <p><strong>N° Orden / Requisición:</strong> ${cxc.id_orden}</p>
               <p><strong>Sucursal Deudora:</strong> ${cxc.sucursal}</p>
+              <p><strong>Fecha y Hora:</strong> ${cxc.fecha}</p>
             </div>
             <div class="info-box">
-              <p><strong>Fecha de Registro:</strong> ${cxc.fecha}</p>
+              <p><strong>Tasa BCV del Día:</strong> Bs. ${tasaAplicada.toFixed(2)}</p>
               <p><strong>Estatus de Cobro:</strong> 
                 <span class="badge ${cxc.estatus_pago.includes('Pagado') ? 'badge-pagado' : 'badge-pendiente'}">
                   ${cxc.estatus_pago}
@@ -726,22 +751,44 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
             </div>
           </div>
 
-          <table class="tabla-totales">
+          <table class="tabla-items">
             <thead>
               <tr>
-                <th>Concepto / Descripción</th>
-                <th style="text-align: right;">Monto USD ($)</th>
-                <th style="text-align: right;">Monto BS (Tasa BCV)</th>
+                <th>Cant.</th>
+                <th>Descripción / Artículo</th>
+                <th>Unidad</th>
+                <th style="text-align: right;">Precio U. USD ($)</th>
+                <th style="text-align: right;">Precio U. BS (Bs)</th>
+                <th style="text-align: right;">Subtotal USD ($)</th>
+                <th style="text-align: right;">Subtotal BS (Bs)</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Despacho de Mercancía Requisición <strong>${cxc.id_orden}</strong></td>
-                <td style="text-align: right; font-weight: bold; color: #059669;">$${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
-                <td style="text-align: right; font-weight: bold; color: #d97706;">Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
-              </tr>
+              ${items.length > 0 ? items.map(i => {
+                const precioU = parseFloat(i.precio) || 0;
+                const cant = parseFloat(i.cantidad) || 0;
+                const subUSD = precioU * cant;
+                const subBS = subUSD * tasaAplicada;
+                const precioBS = precioU * tasaAplicada;
+                return `
+                  <tr>
+                    <td>${cant}</td>
+                    <td><strong>${i.nombre}</strong></td>
+                    <td>${i.unidad || 'Unidad'}</td>
+                    <td style="text-align: right;">$${precioU.toFixed(2)}</td>
+                    <td style="text-align: right;">Bs. ${precioBS.toFixed(2)}</td>
+                    <td style="text-align: right; color: #059669; font-weight: bold;">$${subUSD.toFixed(2)}</td>
+                    <td style="text-align: right; color: #d97706; font-weight: bold;">Bs. ${subBS.toFixed(2)}</td>
+                  </tr>
+                `;
+              }).join('') : `<tr><td colspan="7" style="text-align: center;">Sin detalles de items registrados</td></tr>`}
             </tbody>
           </table>
+
+          <div class="totales">
+            <p><strong>Total General USD:</strong> <span style="color: #059669; font-size: 16px;">$${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</span></p>
+            <p><strong>Total General BS:</strong> <span style="color: #d97706; font-size: 16px;">Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</span></p>
+          </div>
 
           <div class="firmas">
             <div class="linea-firma">Firma Entregado (Planta)</div>
@@ -910,7 +957,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           <h2>FALCON CREST - PLANTA / PRODUCCIÓN</h2>
           <p><b>Requisición:</b> ${orden.id}</p>
           <p><b>Sucursal:</b> ${orden.sucursal}</p>
-          <p><b>Fecha:</b> ${orden.fecha}</p>
+          <p><b>Fecha y Hora:</b> ${orden.fecha}</p>
           <p><b>Prioridad:</b> ${orden.prioridad}</p>
           <p><b>Observaciones:</b> ${orden.observaciones || 'Ninguna'}</p>
           <table>
@@ -1141,7 +1188,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                   <thead>
                     <tr style={{ borderBottom: '1px solid #5c3a2a', color: '#d1d5db' }}>
                       <th style={{ padding: '10px' }}>ID Orden</th>
-                      <th style={{ padding: '10px' }}>Fecha</th>
+                      <th style={{ padding: '10px' }}>Fecha y Hora</th>
                       <th style={{ padding: '10px' }}>Prioridad</th>
                       <th style={{ padding: '10px' }}>Total ($)</th>
                       <th style={{ padding: '10px' }}>Estatus</th>
@@ -1180,6 +1227,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 <button onClick={() => setOrdenSeleccionada(null)} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
               </div>
               <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Sucursal:</strong> {ordenSeleccionada.sucursal}</p>
+              <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Fecha y Hora:</strong> {ordenSeleccionada.fecha}</p>
               <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Observaciones:</strong> {ordenSeleccionada.observaciones || 'Ninguna'}</p>
               
               <div style={{ margin: '15px 0' }}>
@@ -1232,7 +1280,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* MÓDULO CUENTAS POR COBRAR (CxC) MEJORADO CON BORRAR E IMPRIMIR */}
+      {/* MÓDULO CUENTAS POR COBRAR (CxC) */}
       {pestana === 'cxc' && (
         <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>💳 Módulo de Cuentas por Cobrar (CxC) - Sucursales</h3>
@@ -1251,7 +1299,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                   <tr style={{ borderBottom: '1px solid #5c3a2a', color: '#d1d5db' }}>
                     <th style={{ padding: '10px' }}>ID Orden</th>
                     <th style={{ padding: '10px' }}>Sucursal</th>
-                    <th style={{ padding: '10px' }}>Fecha</th>
+                    <th style={{ padding: '10px' }}>Fecha y Hora</th>
                     <th style={{ padding: '10px' }}>Monto ($)</th>
                     <th style={{ padding: '10px' }}>Monto (Bs)</th>
                     <th style={{ padding: '10px' }}>Estatus de Pago</th>
@@ -1313,10 +1361,10 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                               </button>
                             )}
 
-                            {/* BOTÓN IMPRIMIR FACTURA */}
+                            {/* BOTÓN IMPRIMIR FACTURA DETALLADA */}
                             <button 
                               onClick={() => imprimirFacturaCxc(cxc)}
-                              title="Imprimir Factura / Comprobante de Cobro"
+                              title="Imprimir Factura / Comprobante Detallado por Ítem"
                               style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
                             >
                               🖨️
@@ -1410,7 +1458,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
       )}
 
-      {/* PESTAÑA: CREAR / CARGAR ARTÍCULOS (SECCIÓN INDIVIDUAL + CSV) */}
+      {/* PESTAÑA: CREAR / CARGAR ARTÍCULOS */}
       {pestana === 'crear_producto' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
           

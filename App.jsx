@@ -3,7 +3,7 @@ import logoFalcon from './assets/logo.jpg';
 const URL_LOGO = logoFalcon;
 import { supabase } from './supabaseClient';
 
-// --- SISTEMA DE AUDIO REFORZADO PARA NAVEGADORES ---
+// --- SISTEMA DE AUDIO REFORZADO ---
 let audioCtxGlobal = null;
 
 const inicializarAudioContext = () => {
@@ -37,7 +37,7 @@ const reproducirAlertaSonora = () => {
           osc.start();
           osc.stop(audioCtxGlobal.currentTime + duracion);
         } catch (e) {
-          console.error("Error reproduciendo beep:", e);
+          console.error("Error reproducir beep:", e);
         }
       }, delay);
     };
@@ -57,7 +57,6 @@ export default function App() {
   const [claveAdminInput, setClaveAdminInput] = useState('');
   const [nuevaAlertaAdmin, setNuevaAlertaAdmin] = useState(false);
 
-  // Activar audio con cualquier interacción inicial
   useEffect(() => {
     const habilitarAudio = () => {
       inicializarAudioContext();
@@ -72,7 +71,6 @@ export default function App() {
     };
   }, []);
 
-  // --- CATÁLOGO DE PRODUCTOS DESDE SUPABASE ---
   const [productosCatalogo, setProductosCatalogo] = useState([]);
 
   const cargarProductosDeSupabase = async () => {
@@ -92,7 +90,6 @@ export default function App() {
     cargarProductosDeSupabase();
   }, []);
 
-  // --- REQUISICIONES REALTIME Y POLLING AUTOMÁTICO ---
   const [listaRequisiciones, setListaRequisiciones] = useState([]);
   const conteoRef = useRef(0);
 
@@ -122,7 +119,7 @@ export default function App() {
     cargarRequisicionesDeSupabase();
 
     const canalRequisiciones = supabase
-      .channel('canal-alertas-global-v3')
+      .channel('canal-alertas-global-v10')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'requisiciones' },
@@ -142,7 +139,6 @@ export default function App() {
     };
   }, []);
 
-  // --- TASA BCV ---
   const [tasaBcv, setTasaBcv] = useState(() => {
     const guardada = localStorage.getItem('falcon_tasa_bcv');
     return guardada ? parseFloat(guardada) : 30.50;
@@ -206,10 +202,10 @@ export default function App() {
         await guardarTasaEnSupabase(valorOficial);
         alert(`✅ Tasa BCV actualizada automáticamente: ${valorOficial} Bs.`);
       } else {
-        alert("⚠️ No se pudo obtener la tasa automática. Puedes ingresarla manualmente.");
+        alert("⚠️ No se pudo obtener la tasa automática.");
       }
     } catch (err) {
-      console.error("Error consultando la API del BCV:", err);
+      console.error("Error consultando API BCV:", err);
       alert("❌ Error de conexión al consultar la tasa automática.");
     } finally {
       setCargandoTasa(false);
@@ -230,7 +226,6 @@ export default function App() {
         setListaAdmins(data);
       }
     };
-
     cargarUsuarios();
   }, []);
 
@@ -247,60 +242,87 @@ export default function App() {
   };
 
   return (
-    <div className="fondo-panaderia-corcho">
-      {modo === 'menu' && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', zIndex: 2, position: 'relative' }}>
-          <div className="tarjeta-corcho">
-            <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b', marginBottom: '20px' }} />
-            <h1 style={{ color: '#f59e0b', fontSize: '24px', margin: '0 0 5px 0' }}>FALCON CREST</h1>
-            <p style={{ color: '#d1d5db', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
+    <div style={{ 
+      backgroundColor: '#351c12', 
+      backgroundImage: 'radial-gradient(circle at 50% 50%, #4a2717 0%, #29140c 100%)',
+      minHeight: '100vh', 
+      color: '#f3f4f6', 
+      fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+      position: 'relative',
+      overflowX: 'hidden'
+    }}>
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        fontSize: '70px',
+        lineHeight: '2.2',
+        wordSpacing: '100px',
+        letterSpacing: '50px',
+        opacity: 0.04,
+        pointerEvents: 'none',
+        zIndex: 1,
+        transform: 'rotate(-12deg)',
+        userSelect: 'none'
+      }}>
+        🥖 🥐 ☕ 🍞 🥨 🌾 🍩 ☕ 🥖 🥐 🍞 🌾 🥨 ☕ 🥐 🥖 🥐 🥖 ☕ 🍞 🥨 🌾 🍩
+      </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <button 
-                onClick={() => setModo('sucursal')} 
-                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-              >
-                🏪 Ingresar Sucursal (Cafetín Sambil)
-              </button>
+      <div style={{ position: 'relative', zIndex: 2 }}>
+        {modo === 'menu' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
+            <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', border: '1px solid #7c4a32', borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 15px 35px rgba(0,0,0,0.7)' }}>
+              <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f59e0b', marginBottom: '20px' }} />
+              <h1 style={{ color: '#f59e0b', fontSize: '24px', margin: '0 0 5px 0' }}>FALCON CREST</h1>
+              <p style={{ color: '#d1d5db', fontSize: '13px', marginBottom: '30px' }}>Sistema de Requisiciones y Control — Sambil Punto Fijo</p>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', margin: '10px 0', paddingTop: '20px' }}>
-                <h3 style={{ fontSize: '14px', color: '#f3f4f6', marginBottom: '10px' }}>🔑 Acceso Administrativo (Planta)</h3>
-                <form onSubmit={ingresarComoAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <select 
-                    value={usuarioActual} 
-                    onChange={e => setUsuarioActual(e.target.value)}
-                    style={{ backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
-                  >
-                    {listaAdmins.length > 0 ? (
-                      listaAdmins.map(a => (
-                        <option key={a.usuario} value={a.usuario}>Administrador: {a.usuario}</option>
-                      ))
-                    ) : (
-                      <option value="admin">Administrador: admin</option>
-                    )}
-                  </select>
-                  <input 
-                    type="password" 
-                    placeholder="Contraseña de Administrador" 
-                    value={claveAdminInput}
-                    onChange={e => setClaveAdminInput(e.target.value)}
-                    style={{ backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
-                  />
-                  <button 
-                    type="submit" 
-                    style={{ backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
-                  >
-                    🔓 Entrar al Panel de Control
-                  </button>
-                </form>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <button 
+                  onClick={() => setModo('sucursal')} 
+                  style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                >
+                  🏪 Ingresar Sucursal (Cafetín Sambil)
+                </button>
+
+                <div style={{ borderTop: '1px solid #5c3a2a', margin: '10px 0', paddingTop: '20px' }}>
+                  <h3 style={{ fontSize: '14px', color: '#f3f4f6', marginBottom: '10px' }}>🔑 Acceso Administrativo (Planta)</h3>
+                  <form onSubmit={ingresarComoAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <select 
+                      value={usuarioActual} 
+                      onChange={e => setUsuarioActual(e.target.value)}
+                      style={{ backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #7c4a32', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
+                    >
+                      {listaAdmins.length > 0 ? (
+                        listaAdmins.map(a => (
+                          <option key={a.usuario} value={a.usuario}>Administrador: {a.usuario}</option>
+                        ))
+                      ) : (
+                        <option value="admin">Administrador: admin</option>
+                      )}
+                    </select>
+                    <input 
+                      type="password" 
+                      placeholder="Contraseña de Administrador" 
+                      value={claveAdminInput}
+                      onChange={e => setClaveAdminInput(e.target.value)}
+                      style={{ backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #7c4a32', padding: '10px', borderRadius: '8px', fontSize: '13px' }}
+                    />
+                    <button 
+                      type="submit" 
+                      style={{ backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+                    >
+                      🔓 Entrar al Panel de Control
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {modo === 'sucursal' && (
-        <div style={{ zIndex: 2, position: 'relative' }}>
+        {modo === 'sucursal' && (
           <VistaSucursal 
             onVolverAlMenu={() => setModo('menu')}
             productosCatalogo={productosCatalogo}
@@ -313,11 +335,9 @@ export default function App() {
             cargandoTasa={cargandoTasa}
             cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
           />
-        </div>
-      )}
+        )}
 
-      {modo === 'admin' && (
-        <div style={{ zIndex: 2, position: 'relative' }}>
+        {modo === 'admin' && (
           <PanelAdmin 
             usuarioActual={usuarioActual}
             onVolverAlMenu={() => setModo('menu')}
@@ -336,61 +356,14 @@ export default function App() {
             cargandoTasa={cargandoTasa}
             cargarRequisicionesDeSupabase={cargarRequisicionesDeSupabase}
           />
-        </div>
-      )}
+        )}
 
-      <BannerNuevaRequisicion 
-        nuevaAlertaAdmin={nuevaAlertaAdmin} 
-        setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
-        modo={modo}
-      />
-
-      {/* ESTILOS CSS PARA EL FONDO CORCHO Y SILUETAS DE PANADERÍA */}
-      <style>{`
-        .fondo-panaderia-corcho {
-          background-color: #2b1810;
-          background-image: 
-            radial-gradient(circle at 20% 30%, rgba(139, 69, 19, 0.25) 0%, transparent 40%),
-            radial-gradient(circle at 80% 70%, rgba(92, 51, 23, 0.3) 0%, transparent 40%),
-            repeating-linear-gradient(45deg, rgba(74, 40, 26, 0.1) 0, rgba(74, 40, 26, 0.1) 2px, transparent 0, transparent 50px);
-          min-height: 100vh;
-          color: #f3f4f6;
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          position: relative;
-          overflow-x: hidden;
-        }
-
-        /* Siluetas de panadería de fondo flotantes y elegantes */
-        .fondo-panaderia-corcho::before {
-          content: "🥖 🥐 ☕ 🍞 🥨 🌾 🍩 ☕ 🥖 🥐 🍞 🌾 🥨 ☕ 🥐 🥖";
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          font-size: 85px;
-          line-height: 1.8;
-          word-spacing: 120px;
-          letter-spacing: 60px;
-          opacity: 0.035;
-          pointer-events: none;
-          z-index: 1;
-          transform: rotate(-10deg);
-          user-select: none;
-        }
-
-        .tarjeta-corcho {
-          background-color: rgba(33, 19, 13, 0.92);
-          border: 1px solid rgba(180, 100, 50, 0.3);
-          border-radius: 16px;
-          padding: 40px;
-          width: 100%;
-          max-width: 450px;
-          text-align: center;
-          box-shadow: 0 15px 35px rgba(0,0,0,0.6);
-          backdrop-filter: blur(5px);
-        }
-      `}</style>
+        <BannerNuevaRequisicion 
+          nuevaAlertaAdmin={nuevaAlertaAdmin} 
+          setNuevaAlertaAdmin={setNuevaAlertaAdmin} 
+          modo={modo}
+        />
+      </div>
     </div>
   );
 }
@@ -405,15 +378,8 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
   const [mensajeExito, setMensajeExito] = useState('');
 
   const categorias = [
-    'TODOS', 
-    'Panadería', 
-    'Pastelería', 
-    'Bebidas', 
-    'Golosinas y Chocolates', 
-    'Galletas y Snacks', 
-    'Lácteos y Cafés', 
-    'Empaques y Descartables', 
-    'Cigarrillos y Varios'
+    'TODOS', 'Panadería', 'Pastelería', 'Bebidas', 'Golosinas y Chocolates', 
+    'Galletas y Snacks', 'Lácteos y Cafés', 'Empaques y Descartables', 'Cigarrillos y Varios'
   ];
 
   const agregarAlCarrito = (producto) => {
@@ -489,7 +455,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
   return (
     <div style={{ minHeight: '100vh', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '15px 25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', marginBottom: '20px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '15px 25px', borderRadius: '12px', border: '1px solid #7c4a32', marginBottom: '20px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '45px', height: '45px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #f59e0b' }} />
           <div>
@@ -499,7 +465,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#21130d', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1c0f0a', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
               type="number"
@@ -510,7 +476,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
                 setTasaBcv(nuevoVal);
                 guardarTasaEnSupabase(nuevoVal);
               }}
-              style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #7c4a32', background: '#110905', color: '#fff', fontWeight: 'bold' }}
+              style={{ padding: '4px', fontSize: '13px', width: '90px', textAlign: 'center', borderRadius: '4px', border: '1px solid #7c4a32', background: '#0a0503', color: '#fff', fontWeight: 'bold' }}
             />
             <button 
               onClick={obtenerTasaBcvAutomatica} 
@@ -522,7 +488,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             </button>
           </div>
 
-          <button onClick={onVolverAlMenu} style={{ backgroundColor: '#4a2c1d', color: '#fff', border: '1px solid #7c4a32', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
+          <button onClick={onVolverAlMenu} style={{ backgroundColor: '#4a2717', color: '#fff', border: '1px solid #7c4a32', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
 
@@ -540,7 +506,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               placeholder="🔍 Buscar artículo..." 
               value={busqueda} 
               onChange={(e) => setBusqueda(e.target.value)} 
-              style={{ width: '100%', backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', padding: '12px', borderRadius: '8px', color: '#fff', outline: 'none' }} 
+              style={{ width: '100%', backgroundColor: 'rgba(38, 20, 13, 0.95)', border: '1px solid #7c4a32', padding: '12px', borderRadius: '8px', color: '#fff', outline: 'none' }} 
             />
           </div>
           
@@ -549,7 +515,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
               <button 
                 key={cat} 
                 onClick={() => setCategoriaSeleccionada(cat)} 
-                style={{ padding: '8px 16px', backgroundColor: categoriaSeleccionada === cat ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: categoriaSeleccionada === cat ? '#000' : '#d1d5db', border: '1px solid', borderColor: categoriaSeleccionada === cat ? '#f59e0b' : 'rgba(180, 100, 50, 0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                style={{ padding: '8px 16px', backgroundColor: categoriaSeleccionada === cat ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: categoriaSeleccionada === cat ? '#000' : '#d1d5db', border: '1px solid', borderColor: categoriaSeleccionada === cat ? '#f59e0b' : '#7c4a32', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
               >
                 {cat}
               </button>
@@ -558,10 +524,10 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '15px', maxHeight: '58vh', overflowY: 'auto' }}>
             {productosFiltrados.length === 0 ? (
-              <p style={{ color: '#d1d5db', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para importar tu carga masiva.</p>
+              <p style={{ color: '#d1d5db', gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>No hay artículos registrados. Ve al Panel Admin para crear o importar tu catálogo.</p>
             ) : (
               productosFiltrados.map(prod => (
-                <div key={prod.id} style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                <div key={prod.id} style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', border: '1px solid #7c4a32', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 10px rgba(0,0,0,0.4)' }}>
                   <div>
                     <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 'bold' }}>
                       {prod.categoria}
@@ -580,19 +546,19 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
           </div>
         </div>
 
-        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '12px', padding: '20px', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
-          <h3 style={{ fontSize: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '12px', color: '#f59e0b' }}>
+        <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', border: '1px solid #7c4a32', borderRadius: '12px', padding: '20px', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+          <h3 style={{ fontSize: '16px', borderBottom: '1px solid #5c3a2a', paddingBottom: '10px', marginBottom: '12px', color: '#f59e0b' }}>
             🛒 Requisición Actual ({totalItems})
           </h3>
 
-          <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '8px' }}>
+          <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '10px', borderTop: '1px solid #5c3a2a', paddingTop: '8px' }}>
             {Object.keys(requisicion).length === 0 ? (
               <p style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', margin: '15px 0' }}>No hay artículos seleccionados</p>
             ) : (
               Object.values(requisicion).map(item => (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', fontSize: '12px' }}>
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
-                  <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', borderRadius: '4px', padding: '2px' }} />
+                  <input type="number" min="0.1" step="any" value={item.cantidad} onChange={(e) => actualizarCantidad(item.id, e.target.value)} style={{ width: '45px', textAlign: 'center', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', borderRadius: '4px', padding: '2px' }} />
                   <span style={{ marginLeft: '8px', color: '#34d399', width: '55px', textAlign: 'right', fontWeight: 'bold' }}>
                     ${((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0)).toFixed(2)}
                   </span>
@@ -601,7 +567,7 @@ function VistaSucursal({ onVolverAlMenu, productosCatalogo, setListaRequisicione
             )}
           </div>
 
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '12px' }}>
+          <div style={{ borderTop: '1px solid #5c3a2a', paddingTop: '10px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${totalUSD.toFixed(2)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. {totalBS.toFixed(2)}</span></div>
           </div>
@@ -628,6 +594,203 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
   const [productoEditandoId, setProductoEditandoId] = useState(null);
   const [datosEdicion, setDatosEdicion] = useState({ nombre: '', categoria: '', unidad: '', precio: '' });
 
+  // ESTADO FORMULARIO PRODUCTO INDIVIDUAL
+  const [nuevoProdNombre, setNuevoProdNombre] = useState('');
+  const [nuevoProdCat, setNuevoProdCat] = useState('Panadería');
+  const [nuevoProdUnidad, setNuevoProdUnidad] = useState('Unidad');
+  const [nuevoProdPrecio, setNuevoProdPrecio] = useState('');
+
+  // MÓDULO CXC (ESTADO)
+  const [listaCxc, setListaCxc] = useState([]);
+  const [estatusCxcTemporal, setEstatusCxcTemporal] = useState({});
+  const [filasEditables, setFilasEditables] = useState({});
+
+  const cargarCxcDeSupabase = async () => {
+    const { data, error } = await supabase.from('cxc').select('*').order('created_at', { ascending: false });
+    if (!error && data) {
+      setListaCxc(data);
+      const temps = {};
+      data.forEach(item => {
+        temps[item.id] = item.estatus_pago;
+      });
+      setEstatusCxcTemporal(temps);
+    }
+  };
+
+  useEffect(() => {
+    cargarCxcDeSupabase();
+  }, []);
+
+  const registrarEnCxc = async (orden) => {
+    try {
+      const { data: existe } = await supabase.from('cxc').select('*').eq('id_orden', orden.id);
+      if (existe && existe.length > 0) return;
+
+      const nuevaDeuda = {
+        id_orden: orden.id,
+        sucursal: orden.sucursal || 'Cafetín Sambil',
+        fecha: orden.fecha,
+        totalUSD: parseFloat(orden.totalUSD) || 0,
+        totalBS: parseFloat(orden.totalBS) || 0,
+        estatus_pago: 'Pendiente 💳'
+      };
+
+      await supabase.from('cxc').insert([nuevaDeuda]);
+      cargarCxcDeSupabase();
+    } catch (e) {
+      console.error("Error registrando CxC:", e);
+    }
+  };
+
+  const guardarEstatusPagoCxc = async (idDb) => {
+    const nuevoEstatus = estatusCxcTemporal[idDb];
+    if (!nuevoEstatus) return;
+
+    const { error } = await supabase.from('cxc').update({ estatus_pago: nuevoEstatus }).eq('id', idDb);
+    if (error) {
+      alert("❌ Error al guardar el estatus en la nube.");
+    } else {
+      cargarCxcDeSupabase();
+      setFilasEditables(prev => ({ ...prev, [idDb]: false }));
+      setAlertaAdminMsg(`✅ Estatus guardado y bloqueado correctamente: [${nuevoEstatus}]`);
+      setTimeout(() => setAlertaAdminMsg(''), 4000);
+    }
+  };
+
+  const habilitarEdicionCxc = (idDb) => {
+    setFilasEditables(prev => ({ ...prev, [idDb]: true }));
+  };
+
+  // 1. ELIMINAR CUENTA POR COBRAR
+  const eliminarCxc = async (idDb, idOrden) => {
+    if (window.confirm(`⚠️ ¿Deseas eliminar permanentemente la Cuenta por Cobrar de la orden ${idOrden}?`)) {
+      try {
+        const { error } = await supabase.from('cxc').delete().eq('id', idDb);
+        if (!error) {
+          cargarCxcDeSupabase();
+          setAlertaAdminMsg(`🗑️ Registro CxC ${idOrden} eliminado.`);
+          setTimeout(() => setAlertaAdminMsg(''), 4000);
+        } else {
+          alert("❌ Error al eliminar el registro.");
+        }
+      } catch (err) {
+        console.error("Error al eliminar CxC:", err);
+      }
+    }
+  };
+
+  // 2. IMPRIMIR COMPROBANTE/FACTURA DE CXC
+  const imprimirFacturaCxc = (cxc) => {
+    const ventana = window.open('', '_blank');
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Factura / Comprobante de Cobro - ${cxc.id_orden}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #111; max-width: 650px; margin: 0 auto; border: 1px solid #ccc; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .header h1 { margin: 0; font-size: 22px; color: #351c12; }
+            .header p { margin: 2px 0; font-size: 12px; color: #555; }
+            .info { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 13px; }
+            .info-box { background: #f9f9f9; padding: 10px; border-radius: 6px; width: 48%; border: 1px solid #eee; }
+            .tabla-totales { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .tabla-totales th, .tabla-totales td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 13px; }
+            .tabla-totales th { background: #f3f4f6; }
+            .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+            .badge-pagado { background: #d1fae5; color: #065f46; }
+            .badge-pendiente { background: #fef3c7; color: #92400e; }
+            .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #777; border-top: 1px dashed #ccc; padding-top: 15px; }
+            .firmas { display: flex; justify-content: space-between; margin-top: 50px; }
+            .linea-firma { width: 40%; border-top: 1px solid #000; text-align: center; font-size: 11px; paddingTop: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>FALCON CREST</h1>
+            <p><strong>Comprobante de Cuenta por Cobrar / Factura Sucursal</strong></p>
+            <p>Sambil Punto Fijo — Planta y Control de Distribución</p>
+          </div>
+
+          <div class="info">
+            <div class="info-box">
+              <p><strong>N° Orden / Requisición:</strong> ${cxc.id_orden}</p>
+              <p><strong>Sucursal Deudora:</strong> ${cxc.sucursal}</p>
+            </div>
+            <div class="info-box">
+              <p><strong>Fecha de Registro:</strong> ${cxc.fecha}</p>
+              <p><strong>Estatus de Cobro:</strong> 
+                <span class="badge ${cxc.estatus_pago.includes('Pagado') ? 'badge-pagado' : 'badge-pendiente'}">
+                  ${cxc.estatus_pago}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <table class="tabla-totales">
+            <thead>
+              <tr>
+                <th>Concepto / Descripción</th>
+                <th style="text-align: right;">Monto USD ($)</th>
+                <th style="text-align: right;">Monto BS (Tasa BCV)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Despacho de Mercancía Requisición <strong>${cxc.id_orden}</strong></td>
+                <td style="text-align: right; font-weight: bold; color: #059669;">$${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
+                <td style="text-align: right; font-weight: bold; color: #d97706;">Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="firmas">
+            <div class="linea-firma">Firma Entregado (Planta)</div>
+            <div class="linea-firma">Firma Recibido y Conforme (Sucursal)</div>
+          </div>
+
+          <div class="footer">
+            Documento generado automáticamente por el Sistema Falcon Crest Requisiciones.
+          </div>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => ventana.print(), 500);
+  };
+
+  // 3. AGREGAR PRODUCTO INDIVIDUAL MANUALMENTE
+  const handleCrearProductoIndividual = async (e) => {
+    e.preventDefault();
+    if (!nuevoProdNombre.trim() || !nuevoProdPrecio || isNaN(parseFloat(nuevoProdPrecio))) {
+      alert("⚠️ Introduce un nombre y precio válido para el artículo.");
+      return;
+    }
+
+    try {
+      const nuevoObj = {
+        id: 'p-man-' + Date.now(),
+        nombre: nuevoProdNombre.trim().toUpperCase(),
+        categoria: nuevoProdCat,
+        unidad: nuevoProdUnidad,
+        precio: parseFloat(nuevoProdPrecio)
+      };
+
+      const { error } = await supabase.from('productos').insert([nuevoObj]);
+      if (error) {
+        alert("❌ Error guardando el producto en Supabase.");
+      } else {
+        await cargarProductosDeSupabase();
+        setNuevoProdNombre('');
+        setNuevoProdPrecio('');
+        setAlertaAdminMsg(`✅ ¡Artículo "${nuevoObj.nombre}" creado con éxito en la nube!`);
+        setTimeout(() => setAlertaAdminMsg(''), 4000);
+      }
+    } catch (err) {
+      console.error("Error al crear producto individual:", err);
+    }
+  };
+
   const categoriasDisponibles = [
     'Panadería', 'Pastelería', 'Bebidas', 'Golosinas y Chocolates', 
     'Galletas y Snacks', 'Lácteos y Cafés', 'Empaques y Descartables', 'Cigarrillos y Varios'
@@ -641,18 +804,71 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
+  const actualizarCantidadItemOrden = (indexItem, nuevaCant) => {
+    if (!ordenSeleccionada) return;
+    const cantNum = parseFloat(nuevaCant) || 0;
+    
+    const itemsActualizados = ordenSeleccionada.items.map((it, idx) => {
+      if (idx === indexItem) {
+        return { ...it, cantidad: cantNum };
+      }
+      return it;
+    });
+
+    const nuevoTotalUSD = itemsActualizados.reduce((acc, i) => acc + ((parseFloat(i.precio) || 0) * (parseFloat(i.cantidad) || 0)), 0);
+    const nuevoTotalBS = nuevoTotalUSD * (parseFloat(tasaBcv) || 1);
+
+    const ordenModificada = {
+      ...ordenSeleccionada,
+      items: itemsActualizados,
+      totalUSD: nuevoTotalUSD,
+      totalBS: nuevoTotalBS
+    };
+
+    setOrdenSeleccionada(ordenModificada);
+  };
+
+  const guardarCambiosParcialesOrden = async () => {
+    if (!ordenSeleccionada) return;
+
+    setListaRequisiciones(prev => prev.map(o => o.id === ordenSeleccionada.id ? ordenSeleccionada : o));
+
+    try {
+      if (ordenSeleccionada.supabase_db_id) {
+        await supabase
+          .from('requisiciones')
+          .update({ datos: ordenSeleccionada })
+          .eq('id', ordenSeleccionada.supabase_db_id);
+      }
+
+      if (ordenSeleccionada.estatus.includes('Aprobado') || ordenSeleccionada.estatus.includes('Despachado')) {
+        await registrarEnCxc(ordenSeleccionada);
+      }
+
+      setAlertaAdminMsg("✅ Cantidades parciales guardadas y totales recalculados.");
+      setTimeout(() => setAlertaAdminMsg(''), 4000);
+    } catch (e) {
+      console.error("Error al actualizar orden parcial:", e);
+    }
+  };
+
   const cambiarEstatusOrden = async (orden, nuevoEstatus) => {
-    setListaRequisiciones(prev => prev.map(o => o.id === orden.id ? { ...o, estatus: nuevoEstatus } : o));
+    const ordenActualizada = { ...orden, estatus: nuevoEstatus };
+    setListaRequisiciones(prev => prev.map(o => o.id === orden.id ? ordenActualizada : o));
     if (ordenSeleccionada && ordenSeleccionada.id === orden.id) {
-      setOrdenSeleccionada(prev => ({ ...prev, estatus: nuevoEstatus }));
+      setOrdenSeleccionada(ordenActualizada);
     }
 
     try {
       if (orden.supabase_db_id) {
         await supabase
           .from('requisiciones')
-          .update({ datos: { ...orden, estatus: nuevoEstatus } })
+          .update({ datos: ordenActualizada })
           .eq('id', orden.supabase_db_id);
+      }
+
+      if (nuevoEstatus.includes('Aprobado') || nuevoEstatus.includes('Despachado')) {
+        await registrarEnCxc(ordenActualizada);
       }
     } catch (e) {
       console.error("Error al actualizar estatus en Supabase:", e);
@@ -744,22 +960,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
   };
 
-  const vaciarTodosLosArticulos = async () => {
-    if (window.confirm("🚨 ¿ESTÁS SEGURO? Se eliminarán TODOS los artículos de Supabase.")) {
-      try {
-        const { error } = await supabase.from('productos').delete().neq('id', '');
-        if (error) {
-          console.error("Error al borrar productos:", error);
-        }
-        await cargarProductosDeSupabase();
-        setAlertaAdminMsg("🗑️ Catálogo vaciado en la nube con éxito.");
-      } catch (err) {
-        console.error("Error:", err);
-      }
-      setTimeout(() => setAlertaAdminMsg(''), 4000);
-    }
-  };
-
   const eliminarArticuloUnico = async (id, nombre) => {
     if (window.confirm(`¿Eliminar "${nombre}" del catálogo en la nube?`)) {
       try {
@@ -790,7 +990,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
     }
 
     try {
-      const { error } = await supabase
+      await supabase
         .from('productos')
         .update({
           nombre: datosEdicion.nombre.trim().toUpperCase(),
@@ -799,11 +999,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           precio: parseFloat(datosEdicion.precio)
         })
         .eq('id', id);
-
-      if (error) {
-        alert("❌ Error al actualizar en Supabase.");
-        return;
-      }
 
       await cargarProductosDeSupabase();
       setProductoEditandoId(null);
@@ -827,7 +1022,6 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
         lineas.forEach((linea, index) => {
           if (!linea.trim() || (index === 0 && linea.toLowerCase().includes('nombre'))) return;
-          
           const cols = linea.split(/[,;\t]/).map(c => c.trim().replace(/^"|"$/g, ''));
           
           if (cols.length >= 2) {
@@ -849,18 +1043,10 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         });
 
         if (nuevosProductos.length > 0) {
-          const { error } = await supabase.from('productos').upsert(nuevosProductos);
-          if (error) {
-            console.error("Error al insertar en Supabase:", error);
-            alert("❌ Hubo un error al guardar en la base de datos.");
-            return;
-          }
-
+          await supabase.from('productos').upsert(nuevosProductos);
           await cargarProductosDeSupabase();
           setAlertaAdminMsg(`📊 ¡Se han cargado ${nuevosProductos.length} artículos a Supabase con éxito!`);
           setTimeout(() => setAlertaAdminMsg(''), 5000);
-        } else {
-          alert("⚠️ El archivo no contiene un formato CSV/TXT válido.");
         }
       } catch (err) {
         console.error("Error:", err);
@@ -873,7 +1059,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
   return (
     <div style={{ minHeight: '100vh', padding: '30px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '15px 25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', marginBottom: '25px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '15px 25px', borderRadius: '12px', border: '1px solid #7c4a32', marginBottom: '25px', flexWrap: 'wrap', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <img src={URL_LOGO} alt="Falcon Crest" style={{ width: '45px', height: '45px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #f59e0b' }} />
           <div>
@@ -883,8 +1069,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
         </div>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          
-          <div style={{ backgroundColor: '#21130d', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ backgroundColor: '#1c0f0a', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#34d399', border: '1px solid #5c3a2a', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>Tasa BCV (Bs):</span>
             <input 
               type="number" 
@@ -895,7 +1080,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 setTasaBcv(val);
                 guardarTasaEnSupabase(val);
               }} 
-              style={{ width: '90px', backgroundColor: '#110905', color: '#34d399', border: '1px solid #7c4a32', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
+              style={{ width: '90px', backgroundColor: '#0a0503', color: '#34d399', border: '1px solid #7c4a32', borderRadius: '4px', padding: '2px 6px', fontWeight: 'bold' }} 
             />
             <button 
               onClick={obtenerTasaBcvAutomatica} 
@@ -907,7 +1092,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
             </button>
           </div>
 
-          <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#4a2c1d', color: '#fff', border: '1px solid #7c4a32', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
+          <button onClick={onVolverAlMenu} style={{ padding: '10px 20px', backgroundColor: '#4a2717', color: '#fff', border: '1px solid #7c4a32', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🏠 Menú Principal</button>
         </div>
       </div>
 
@@ -919,33 +1104,33 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
       {/* BOTONES DE PESTAÑAS */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => cambiarPestana('requisiciones')} style={{ padding: '10px 20px', backgroundColor: pestana === 'requisiciones' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'requisiciones' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', position: 'relative' }}>
+        <button onClick={() => cambiarPestana('requisiciones')} style={{ padding: '10px 20px', backgroundColor: pestana === 'requisiciones' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'requisiciones' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', position: 'relative' }}>
           📦 Requisiciones y Notas ({listaRequisiciones.length})
           {nuevaAlertaAdmin && <span style={{ position: 'absolute', top: '-5px', right: '-5px', width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '50%', border: '2px solid #111827' }}></span>}
         </button>
 
-        <button onClick={() => cambiarPestana('precios')} style={{ padding: '10px 20px', backgroundColor: pestana === 'precios' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'precios' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          💰 Modificar Precios / Artículos ({productosCatalogo.length})
+        <button onClick={() => cambiarPestana('cxc')} style={{ padding: '10px 20px', backgroundColor: pestana === 'cxc' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'cxc' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+          💳 Cuentas por Cobrar (CxC) ({listaCxc.length})
         </button>
 
-        <button onClick={() => cambiarPestana('crear_producto')} style={{ padding: '10px 20px', backgroundColor: pestana === 'crear_producto' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'crear_producto' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          ➕ Carga Masiva y Nuevo Artículo
+        <button onClick={() => cambiarPestana('precios')} style={{ padding: '10px 20px', backgroundColor: pestana === 'precios' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'precios' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+          💰 Catálogo / Precios ({productosCatalogo.length})
         </button>
 
-        <button onClick={() => cambiarPestana('seguridad')} style={{ padding: '10px 20px', backgroundColor: pestana === 'seguridad' ? '#f59e0b' : 'rgba(33, 19, 13, 0.9)', color: pestana === 'seguridad' ? '#000' : '#fff', border: '1px solid rgba(180, 100, 50, 0.3)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          🔐 Claves Admin
+        <button onClick={() => cambiarPestana('crear_producto')} style={{ padding: '10px 20px', backgroundColor: pestana === 'crear_producto' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'crear_producto' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+          ➕ Crear / Cargar Artículos
         </button>
-        
-        <button onClick={vaciarTodosLosArticulos} style={{ marginLeft: 'auto', backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-          🗑️ Borrar Todos los Artículos ({productosCatalogo.length})
+
+        <button onClick={() => cambiarPestana('seguridad')} style={{ padding: '10px 20px', backgroundColor: pestana === 'seguridad' ? '#f59e0b' : 'rgba(38, 20, 13, 0.95)', color: pestana === 'seguridad' ? '#000' : '#fff', border: '1px solid #7c4a32', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+          🔐 Claves
         </button>
       </div>
 
       {/* CONTENIDO DE REQUISICIONES */}
       {pestana === 'requisiciones' && (
-        <div style={{ display: 'grid', gridTemplateColumns: ordenSeleccionada ? '1fr 400px' : '1fr', gap: '20px' }}>
-          <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
-            <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Control de Órdenes y Salida de Insumos</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: ordenSeleccionada ? '1fr 440px' : '1fr', gap: '20px' }}>
+          <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Control de Órdenes y Despachos (Parciales o Totales)</h3>
             {listaRequisiciones.length === 0 ? (
               <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed #5c3a2a', borderRadius: '8px', color: '#9ca3af' }}>
                 No hay requisiciones registradas por la sucursal todavía.
@@ -954,7 +1139,7 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#d1d5db' }}>
+                    <tr style={{ borderBottom: '1px solid #5c3a2a', color: '#d1d5db' }}>
                       <th style={{ padding: '10px' }}>ID Orden</th>
                       <th style={{ padding: '10px' }}>Fecha</th>
                       <th style={{ padding: '10px' }}>Prioridad</th>
@@ -969,14 +1154,14 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                         <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{ord.id}</td>
                         <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{ord.fecha}</td>
                         <td style={{ padding: '10px' }}>
-                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: ord.prioridad?.includes('Urgente') ? '#7f1d1d' : '#4a2c1d', color: '#fff' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: ord.prioridad?.includes('Urgente') ? '#7f1d1d' : '#4a2717', color: '#fff' }}>
                             {ord.prioridad}
                           </span>
                         </td>
                         <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(ord.totalUSD) || 0).toFixed(2)}</td>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>{ord.estatus}</td>
                         <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
-                          <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#4a2c1d', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ver</button>
+                          <button onClick={() => setOrdenSeleccionada(ord)} style={{ background: '#4a2717', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>Revisar / Ajustar</button>
                           <button onClick={() => imprimirOrden(ord)} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🖨️</button>
                           <button onClick={() => eliminarOrden(ord)} style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🗑️</button>
                         </td>
@@ -989,61 +1174,184 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
           </div>
 
           {ordenSeleccionada && (
-            <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', marginBottom: '15px' }}>
-                <h4 style={{ color: '#f59e0b', margin: 0 }}>Detalle: {ordenSeleccionada.id}</h4>
+            <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.98)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', height: 'fit-content', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #5c3a2a', paddingBottom: '10px', marginBottom: '15px' }}>
+                <h4 style={{ color: '#f59e0b', margin: 0 }}>Despacho y Ajuste: {ordenSeleccionada.id}</h4>
                 <button onClick={() => setOrdenSeleccionada(null)} style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
               </div>
               <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Sucursal:</strong> {ordenSeleccionada.sucursal}</p>
-              <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Fecha:</strong> {ordenSeleccionada.fecha}</p>
               <p style={{ fontSize: '12px', color: '#d1d5db', margin: '5px 0' }}><strong>Observaciones:</strong> {ordenSeleccionada.observaciones || 'Ninguna'}</p>
               
               <div style={{ margin: '15px 0' }}>
-                <label style={{ fontSize: '12px', color: '#f59e0b', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>ACTUALIZAR ESTATUS</label>
+                <label style={{ fontSize: '12px', color: '#f59e0b', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>ESTATUS DE LA ORDEN</label>
                 <select 
                   value={ordenSeleccionada.estatus} 
                   onChange={(e) => cambiarEstatusOrden(ordenSeleccionada, e.target.value)}
-                  style={{ width: '100%', backgroundColor: '#21130d', color: '#fff', border: '1px solid #5c3a2a', padding: '8px', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
+                  style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '8px', borderRadius: '6px', outline: 'none', fontWeight: 'bold' }}
                 >
                   <option value="Pendiente ⏳">Pendiente ⏳</option>
                   <option value="En Proceso 🔄">En Proceso 🔄</option>
-                  <option value="Aprobado / Despachado ✅">Aprobado / Despachado ✅</option>
+                  <option value="Aprobado / Despachado ✅">Aprobado / Despachado ✅ (Pasa a CxC)</option>
                   <option value="Cancelado ❌">Cancelado ❌</option>
                 </select>
               </div>
 
-              <div style={{ maxHeight: '180px', overflowY: 'auto', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '15px' }}>
+              <div style={{ maxHeight: '200px', overflowY: 'auto', borderTop: '1px solid #5c3a2a', paddingTop: '10px', marginBottom: '15px' }}>
                 {ordenSeleccionada.items && ordenSeleccionada.items.map((it, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                    <span>{it.cantidad} {it.unidad} - {it.nombre}</span>
-                    <span style={{ color: '#34d399' }}>${((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0)).toFixed(2)}</span>
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
+                    <span style={{ flex: 1, marginRight: '10px' }}>{it.nombre}</span>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="any"
+                      value={it.cantidad} 
+                      onChange={(e) => actualizarCantidadItemOrden(idx, e.target.value)}
+                      style={{ width: '55px', textAlign: 'center', backgroundColor: '#1c0f0a', color: '#34d399', border: '1px solid #7c4a32', borderRadius: '4px', padding: '4px', fontWeight: 'bold' }} 
+                    />
+                    <span style={{ marginLeft: '10px', color: '#34d399', width: '60px', textAlign: 'right', fontWeight: 'bold' }}>
+                      ${((parseFloat(it.precio) || 0) * (parseFloat(it.cantidad) || 0)).toFixed(2)}
+                    </span>
                   </div>
                 ))}
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px', marginBottom: '15px' }}>
+              <button onClick={guardarCambiosParcialesOrden} style={{ width: '100%', backgroundColor: '#d97706', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px', marginBottom: '10px' }}>
+                💾 Guardar Cambios de Despacho Parcial
+              </button>
+
+              <div style={{ borderTop: '1px solid #5c3a2a', paddingTop: '10px', marginBottom: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}><span>Total USD:</span><span style={{ color: '#34d399' }}>${(parseFloat(ordenSeleccionada.totalUSD) || 0).toFixed(2)}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px', marginTop: '4px' }}><span>Total BS:</span><span style={{ color: '#f59e0b' }}>Bs. ${(parseFloat(ordenSeleccionada.totalBS) || 0).toFixed(2)}</span></div>
               </div>
 
               <button onClick={() => imprimirOrden(ordenSeleccionada)} style={{ width: '100%', backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-                🖨️ Imprimir Nota de Despacho
+                🖨️ Imprimir Nota Ajustada
               </button>
             </div>
           )}
         </div>
       )}
 
+      {/* MÓDULO CUENTAS POR COBRAR (CxC) MEJORADO CON BORRAR E IMPRIMIR */}
+      {pestana === 'cxc' && (
+        <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+          <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>💳 Módulo de Cuentas por Cobrar (CxC) - Sucursales</h3>
+          <p style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '20px' }}>
+            Las cuentas guardadas como <strong>Pagado Total ✅</strong> se bloquean automáticamente para proteger la auditoría.
+          </p>
+          
+          {listaCxc.length === 0 ? (
+            <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed #5c3a2a', borderRadius: '8px', color: '#9ca3af' }}>
+              No hay cuentas por cobrar registradas todavía en la nube.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #5c3a2a', color: '#d1d5db' }}>
+                    <th style={{ padding: '10px' }}>ID Orden</th>
+                    <th style={{ padding: '10px' }}>Sucursal</th>
+                    <th style={{ padding: '10px' }}>Fecha</th>
+                    <th style={{ padding: '10px' }}>Monto ($)</th>
+                    <th style={{ padding: '10px' }}>Monto (Bs)</th>
+                    <th style={{ padding: '10px' }}>Estatus de Pago</th>
+                    <th style={{ padding: '10px' }}>Acción / Guardar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaCxc.map(cxc => {
+                    const esPagadoTotal = cxc.estatus_pago === 'Pagado Total ✅';
+                    const estaHabilitadoEdicion = filasEditables[cxc.id];
+                    const estaBloqueado = esPagadoTotal && !estaHabilitadoEdicion;
+
+                    return (
+                      <tr key={cxc.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#f59e0b' }}>{cxc.id_orden}</td>
+                        <td style={{ padding: '10px', color: '#fff' }}>{cxc.sucursal}</td>
+                        <td style={{ padding: '10px', color: '#d1d5db', fontSize: '12px' }}>{cxc.fecha}</td>
+                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>${(parseFloat(cxc.totalUSD) || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', color: '#f59e0b', fontWeight: 'bold' }}>Bs. ${(parseFloat(cxc.totalBS) || 0).toFixed(2)}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: esPagadoTotal ? '#34d399' : '#38bdf8' }}>
+                          {cxc.estatus_pago}
+                        </td>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <select 
+                              disabled={estaBloqueado}
+                              value={estatusCxcTemporal[cxc.id] || cxc.estatus_pago}
+                              onChange={(e) => setEstatusCxcTemporal({ ...estatusCxcTemporal, [cxc.id]: e.target.value })}
+                              style={{ 
+                                backgroundColor: estaBloqueado ? '#0f172a' : '#1c0f0a', 
+                                color: estaBloqueado ? '#94a3b8' : '#fff', 
+                                border: '1px solid #5c3a2a', 
+                                padding: '6px', 
+                                borderRadius: '6px', 
+                                fontWeight: 'bold', 
+                                fontSize: '12px',
+                                cursor: estaBloqueado ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              <option value="Pendiente 💳">Pendiente 💳</option>
+                              <option value="Pagado Parcial 🟡">Pagado Parcial 🟡</option>
+                              <option value="Pagado Total ✅">Pagado Total ✅</option>
+                            </select>
+                            
+                            {estaBloqueado ? (
+                              <button 
+                                onClick={() => habilitarEdicionCxc(cxc.id)}
+                                title="Desbloquear para modificar el estatus"
+                                style={{ backgroundColor: '#475569', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                              >
+                                🔓 Editar
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => guardarEstatusPagoCxc(cxc.id)}
+                                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                              >
+                                💾 Guardar
+                              </button>
+                            )}
+
+                            {/* BOTÓN IMPRIMIR FACTURA */}
+                            <button 
+                              onClick={() => imprimirFacturaCxc(cxc)}
+                              title="Imprimir Factura / Comprobante de Cobro"
+                              style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                            >
+                              🖨️
+                            </button>
+
+                            {/* BOTÓN ELIMINAR REGISTRO */}
+                            <button 
+                              onClick={() => eliminarCxc(cxc.id, cxc.id_orden)}
+                              title="Eliminar registro de Cuenta por Cobrar"
+                              style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {pestana === 'precios' && (
-        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
-          <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Gestión y Edición Completa de Artículos / Precios</h3>
+        <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '20px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+          <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>Gestión de Artículos / Precios</h3>
           <div style={{ marginBottom: '15px' }}>
-            <input type="text" placeholder="🔍 Buscar producto por nombre para editar..." value={busqAdmin} onChange={(e) => setBusqAdmin(e.target.value)} style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff', outline: 'none' }} />
+            <input type="text" placeholder="🔍 Buscar producto..." value={busqAdmin} onChange={(e) => setBusqAdmin(e.target.value)} style={{ width: '100%', backgroundColor: '#1c0f0a', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff', outline: 'none' }} />
           </div>
           <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#d1d5db' }}>
+                <tr style={{ borderBottom: '1px solid #5c3a2a', color: '#d1d5db' }}>
                   <th style={{ padding: '10px' }}>Artículo</th>
                   <th style={{ padding: '10px' }}>Categoría</th>
                   <th style={{ padding: '10px' }}>Unidad</th>
@@ -1052,134 +1360,153 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
                 </tr>
               </thead>
               <tbody>
-                {productosAdminFiltrados.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
-                      No hay artículos. Sube tu archivo CSV en la pestaña "Carga Masiva".
-                    </td>
-                  </tr>
-                ) : (
-                  productosAdminFiltrados.map(p => {
-                    const esEditando = productoEditandoId === p.id;
-                    return (
-                      <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: esEditando ? '#2e1911' : 'transparent' }}>
-                        <td style={{ padding: '10px', fontWeight: 'bold' }}>
-                          {esEditando ? (
-                            <input 
-                              type="text" 
-                              value={datosEdicion.nombre} 
-                              onChange={(e) => setDatosEdicion({ ...datosEdicion, nombre: e.target.value })}
-                              style={{ width: '100%', backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
-                            />
-                          ) : p.nombre}
-                        </td>
-
-                        <td style={{ padding: '10px', color: '#d1d5db' }}>
-                          {esEditando ? (
-                            <select 
-                              value={datosEdicion.categoria}
-                              onChange={(e) => setDatosEdicion({ ...datosEdicion, categoria: e.target.value })}
-                              style={{ backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
-                            >
-                              {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          ) : p.categoria}
-                        </td>
-
-                        <td style={{ padding: '10px', color: '#38bdf8' }}>
-                          {esEditando ? (
-                            <select 
-                              value={datosEdicion.unidad}
-                              onChange={(e) => setDatosEdicion({ ...datosEdicion, unidad: e.target.value })}
-                              style={{ backgroundColor: '#110905', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}
-                            >
-                              {unidadesDisponibles.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                          ) : p.unidad}
-                        </td>
-
-                        <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>
-                          {esEditando ? (
-                            <input 
-                              type="number" 
-                              step="0.01" 
-                              value={datosEdicion.precio}
-                              onChange={(e) => setDatosEdicion({ ...datosEdicion, precio: e.target.value })}
-                              style={{ width: '80px', backgroundColor: '#110905', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }}
-                            />
-                          ) : `$${(parseFloat(p.precio) || 0).toFixed(2)}`}
-                        </td>
-
-                        <td style={{ padding: '10px' }}>
-                          {esEditando ? (
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button onClick={() => guardarEdicionProducto(p.id)} style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar</button>
-                              <button onClick={() => setProductoEditandoId(null)} style={{ backgroundColor: '#4a2c1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button onClick={() => iniciarEdicionProducto(p)} style={{ backgroundColor: '#d97706', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>✏️ Editar</button>
-                              <button onClick={() => eliminarArticuloUnico(p.id, p.nombre)} style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🗑️</button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                {productosAdminFiltrados.map(p => {
+                  const esEditando = productoEditandoId === p.id;
+                  return (
+                    <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: esEditando ? '#2e1911' : 'transparent' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>
+                        {esEditando ? (
+                          <input type="text" value={datosEdicion.nombre} onChange={(e) => setDatosEdicion({ ...datosEdicion, nombre: e.target.value })} style={{ width: '100%', backgroundColor: '#0a0503', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }} />
+                        ) : p.nombre}
+                      </td>
+                      <td style={{ padding: '10px', color: '#d1d5db' }}>
+                        {esEditando ? (
+                          <select value={datosEdicion.categoria} onChange={(e) => setDatosEdicion({ ...datosEdicion, categoria: e.target.value })} style={{ backgroundColor: '#0a0503', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}>
+                            {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        ) : p.categoria}
+                      </td>
+                      <td style={{ padding: '10px', color: '#38bdf8' }}>
+                        {esEditando ? (
+                          <select value={datosEdicion.unidad} onChange={(e) => setDatosEdicion({ ...datosEdicion, unidad: e.target.value })} style={{ backgroundColor: '#0a0503', color: '#fff', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px' }}>
+                            {unidadesDisponibles.map(u => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        ) : p.unidad}
+                      </td>
+                      <td style={{ padding: '10px', color: '#34d399', fontWeight: 'bold' }}>
+                        {esEditando ? (
+                          <input type="number" step="0.01" value={datosEdicion.precio} onChange={(e) => setDatosEdicion({ ...datosEdicion, precio: e.target.value })} style={{ width: '80px', backgroundColor: '#0a0503', color: '#34d399', border: '1px solid #f59e0b', padding: '5px', borderRadius: '4px', fontWeight: 'bold' }} />
+                        ) : `$${(parseFloat(p.precio) || 0).toFixed(2)}`}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        {esEditando ? (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => guardarEdicionProducto(p.id)} style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>💾 Guardar</button>
+                            <button onClick={() => setProductoEditandoId(null)} style={{ backgroundColor: '#4a2717', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => iniciarEdicionProducto(p)} style={{ backgroundColor: '#d97706', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>✏️</button>
+                            <button onClick={() => eliminarArticuloUnico(p.id, p.nombre)} style={{ backgroundColor: '#7f1d1d', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🗑️</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
+      {/* PESTAÑA: CREAR / CARGAR ARTÍCULOS (SECCIÓN INDIVIDUAL + CSV) */}
       {pestana === 'crear_producto' && (
-        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', maxWidth: '600px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
-          <h3 style={{ color: '#38bdf8', margin: '0 0 10px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
-          <p style={{ fontSize: '12px', color: '#d1d5db', marginBottom: '15px' }}>
-            Selecciona tu archivo <strong>.csv</strong> generado con la lista de precios:<br/>
-            <code>Nombre, Precio, Categoría, Unidad</code>
-          </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          
+          {/* FORMULARIO CREAR INDIVIDUAL */}
+          <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>➕ Crear Artículo Individual</h3>
+            <form onSubmit={handleCrearProductoIndividual} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Nombre del Artículo:</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: PAN DE JAMÓN ESPECIAL" 
+                  value={nuevoProdNombre} 
+                  onChange={e => setNuevoProdNombre(e.target.value)}
+                  style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px', outline: 'none' }} 
+                  required
+                />
+              </div>
 
-          <div style={{ border: '2px dashed #7c4a32', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#110905', marginBottom: '15px' }}>
-            <input 
-              type="file" 
-              accept=".csv, .txt" 
-              onChange={handleCargaMasiva}
-              style={{ display: 'none' }}
-              id="excelInput"
-            />
-            <label htmlFor="excelInput" style={{ backgroundColor: '#007bff', color: '#fff', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'inline-block' }}>
-              📁 Cargar Archivo CSV / TXT
-            </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Categoría:</label>
+                  <select 
+                    value={nuevoProdCat} 
+                    onChange={e => setNuevoProdCat(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px' }}
+                  >
+                    {categoriasDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '4px' }}>Unidad de Medida:</label>
+                  <select 
+                    value={nuevoProdUnidad} 
+                    onChange={e => setNuevoProdUnidad(e.target.value)}
+                    style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#fff', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px' }}
+                  >
+                    {unidadesDisponibles.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: '#34d399', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Precio en USD ($):</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  placeholder="0.00" 
+                  value={nuevoProdPrecio} 
+                  onChange={e => setNuevoProdPrecio(e.target.value)}
+                  style={{ width: '100%', backgroundColor: '#1c0f0a', color: '#34d399', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '6px', fontWeight: 'bold', outline: 'none' }} 
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}
+              >
+                💾 Guardar Artículo en Supabase
+              </button>
+            </form>
           </div>
+
+          {/* CARGA MASIVA CSV */}
+          <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color: '#38bdf8', margin: '0 0 15px 0' }}>📊 Carga Masiva desde Excel / CSV</h3>
+            <p style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '15px' }}>
+              Sube un archivo de hoja de cálculo en formato <strong>CSV</strong> para importar listas de precios grandes de golpe.
+            </p>
+            <div style={{ border: '2px dashed #7c4a32', padding: '25px', borderRadius: '10px', textAlign: 'center', backgroundColor: '#0a0503' }}>
+              <input type="file" accept=".csv, .txt" onChange={handleCargaMasiva} style={{ display: 'none' }} id="excelInput" />
+              <label htmlFor="excelInput" style={{ backgroundColor: '#2563eb', color: '#fff', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'inline-block' }}>
+                📁 Cargar Archivo CSV / TXT
+              </label>
+            </div>
+          </div>
+
         </div>
       )}
 
       {pestana === 'seguridad' && (
-        <div style={{ backgroundColor: 'rgba(33, 19, 13, 0.9)', padding: '25px', borderRadius: '12px', border: '1px solid rgba(180, 100, 50, 0.3)', maxWidth: '500px', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}>
+        <div style={{ backgroundColor: 'rgba(38, 20, 13, 0.95)', padding: '25px', borderRadius: '12px', border: '1px solid #7c4a32', maxWidth: '500px', boxShadow: '0 8px 20px rgba(0,0,0,0.5)' }}>
           <h3 style={{ color: '#f59e0b', margin: '0 0 15px 0' }}>🔐 Cambio de Claves de Administradores</h3>
           {msgClave && <div style={{ backgroundColor: '#059669', color: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontWeight: 'bold' }}>{msgClave}</div>}
           <form onSubmit={handleActualizarClave}>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>SELECCIONAR ADMINISTRADOR</label>
-              <select value={userSeleccionado} onChange={(e) => setUserSeleccionado(e.target.value)} style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }}>
-                {listaAdmins.length > 0 ? (
-                  listaAdmins.map(a => (
-                    <option key={a.usuario} value={a.usuario}>{a.usuario}</option>
-                  ))
-                ) : (
-                  <option value="admin">admin</option>
-                )}
+              <select value={userSeleccionado} onChange={(e) => setUserSeleccionado(e.target.value)} style={{ width: '100%', backgroundColor: '#1c0f0a', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }}>
+                {listaAdmins.map(a => <option key={a.usuario} value={a.usuario}>{a.usuario}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: '#d1d5db', display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>NUEVA CONTRASEÑA</label>
-              <input type="password" value={nuevaClave} onChange={(e) => setNuevaClave(e.target.value)} placeholder="Escribe la nueva contraseña..." style={{ width: '100%', backgroundColor: '#21130d', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }} />
+              <input type="password" value={nuevaClave} onChange={(e) => setNuevaClave(e.target.value)} placeholder="Nueva contraseña..." style={{ width: '100%', backgroundColor: '#1c0f0a', border: '1px solid #5c3a2a', padding: '10px', borderRadius: '8px', color: '#fff' }} />
             </div>
-            <button type="submit" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-              Actualizar Contraseña
-            </button>
+            <button type="submit" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#000', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Actualizar</button>
           </form>
         </div>
       )}
@@ -1189,12 +1516,9 @@ function PanelAdmin({ usuarioActual, onVolverAlMenu, listaRequisiciones, setList
 
 const guardarRequisicionEnNube = async (detallesRequisicion) => {
   try {
-    const { error } = await supabase
-      .from('requisiciones')
-      .insert([{ datos: detallesRequisicion }]);
-    if (error) console.error("Error al guardar en Supabase:", error);
+    await supabase.from('requisiciones').insert([{ datos: detallesRequisicion }]);
   } catch (err) {
-    console.error("Error inesperado:", err);
+    console.error("Error:", err);
   }
 };
 
@@ -1202,24 +1526,7 @@ function BannerNuevaRequisicion({ nuevaAlertaAdmin, setNuevaAlertaAdmin, modo })
   if (!nuevaAlertaAdmin || modo === 'sucursal') return null;
 
   return (
-    <div
-      onClick={() => setNuevaAlertaAdmin(false)}
-      style={{
-        position: 'fixed',
-        top: '20px',
-        right: '25px',
-        backgroundColor: '#DC2626',
-        color: '#fff',
-        padding: '20px 30px',
-        borderRadius: '16px',
-        fontSize: '18px',
-        fontWeight: 'bold',
-        zIndex: 999999,
-        cursor: 'pointer',
-        boxShadow: '0 15px 35px rgba(220, 38, 38, 0.9)',
-        border: '4px solid #FEF08A'
-      }}
-    >
+    <div onClick={() => setNuevaAlertaAdmin(false)} style={{ position: 'fixed', top: '20px', right: '25px', backgroundColor: '#DC2626', color: '#fff', padding: '20px 30px', borderRadius: '16px', fontSize: '18px', fontWeight: 'bold', zIndex: 999999, cursor: 'pointer', boxShadow: '0 15px 35px rgba(220, 38, 38, 0.9)', border: '4px solid #FEF08A' }}>
       🚨 ¡NUEVA REQUISICIÓN ENVIADA DESDE EL SAMBIL! 🚨
     </div>
   );
